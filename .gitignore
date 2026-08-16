@@ -1,0 +1,54 @@
+# Binary / non-text assets are kept locally only — this repo tracks text files.
+#
+# The art packs under art_assets/ are third-party licensed content, and the
+# generated blow-ups under asset_reference/ can be regenerated from them, so
+# neither belongs in version control.
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.webp
+*.tga
+*.ico
+*.svg
+
+# Art source files
+*.aseprite
+*.ase
+*.psd
+*.xcf
+*.kra
+*.pdn
+
+# Audio / video
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.mp4
+*.webm
+
+# Fonts
+*.ttf
+*.otf
+*.woff
+*.woff2
+
+# Archives
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Build output / local cruft
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
