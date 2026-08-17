@@ -9,6 +9,8 @@
  * Rule checking beyond "can this be loaded at all" lives in `level-rules.ts`.
  */
 
+import { boxCentre } from './collision.js';
+import { PLAYER_BOX, TILE_SUBPX } from './constants.js';
 import { LEGEND, parseRoom, type Room, type SymbolCell } from './room.js';
 
 export type FloorId = 'f1' | 'f2' | 'f3' | 'f4';
@@ -557,6 +559,60 @@ function linkDoors(
   }
 
   return doors;
+}
+
+/** Where the player stands after coming through a door, and which way they face (01 §8.2). */
+export interface EntryPlacement {
+  /** Sprite-cell top-left, in subpixels. */
+  x: number;
+  y: number;
+  dir: 'U' | 'D' | 'L' | 'R';
+}
+
+/**
+ * The floor tile inside the destination room next to its door cells, centred across a
+ * two-cell pair: `x` (or `y`) = shared edge midpoint − 8 px. Direction of travel is whatever
+ * carries you inward from that wall.
+ */
+export function entryPlacement(room: LoadedRoom, cells: Cell[], wall: string): EntryPlacement {
+  const cols = cells.map((c) => c[0]);
+  const rows = cells.map((c) => c[1]);
+  const minCol = Math.min(...cols);
+  const minRow = Math.min(...rows);
+  const pair = cells.length === 2;
+
+  switch (wall) {
+    case 'top':
+      return {
+        x: pair ? (minCol + 1) * TILE_SUBPX - TILE_SUBPX / 2 : minCol * TILE_SUBPX,
+        y: 1 * TILE_SUBPX,
+        dir: 'D',
+      };
+    case 'bottom':
+      return {
+        x: pair ? (minCol + 1) * TILE_SUBPX - TILE_SUBPX / 2 : minCol * TILE_SUBPX,
+        y: (room.h - 2) * TILE_SUBPX,
+        dir: 'U',
+      };
+    case 'left':
+      return {
+        x: 1 * TILE_SUBPX,
+        y: pair ? (minRow + 1) * TILE_SUBPX - TILE_SUBPX / 2 : minRow * TILE_SUBPX,
+        dir: 'R',
+      };
+    default:
+      return {
+        x: (room.w - 2) * TILE_SUBPX,
+        y: pair ? (minRow + 1) * TILE_SUBPX - TILE_SUBPX / 2 : minRow * TILE_SUBPX,
+        dir: 'L',
+      };
+  }
+}
+
+/** The tile the player's hitbox centre lands on after `entryPlacement`. */
+export function entryTile(place: EntryPlacement): Cell {
+  const centre = boxCentre(PLAYER_BOX, { x: place.x, y: place.y });
+  return [Math.floor(centre.x / TILE_SUBPX), Math.floor(centre.y / TILE_SUBPX)];
 }
 
 /** The end of a door you arrive at, given the room you are leaving. */

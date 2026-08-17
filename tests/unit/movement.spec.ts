@@ -147,8 +147,10 @@ describe('the tick loop', () => {
     expect([s.player.x, s.player.y]).toEqual([512, 512]);
   });
 
-  it('falls back to the origin in a room with no entry point', () => {
+  it('falls back to the first walkable tile in a room with no entry point', () => {
+    // Rooms other than a floor's first have no `@`; the debug renderer and tests start in
+    // them anyway, so the fallback has to be somewhere the player can stand.
     const s = new Sim(parseRoom(['#####', '#...#', '#####']));
-    expect([s.player.x, s.player.y]).toEqual([0, 0]);
+    expect([s.player.x, s.player.y]).toEqual([256, 256]);
   });
 });

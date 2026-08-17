@@ -69,3 +69,40 @@ export const DYING_TICKS = 60;
 
 /** Sim freeze when a swing connects; skips phases 3–9. (01 §1, §4.2) */
 export const HIT_STOP_TICKS = 3;
+
+// ---------------------------------------------------------------------------
+// Rooms, doors, transitions — 01-mechanics §6, §8
+// ---------------------------------------------------------------------------
+
+/** Camera slide between rooms; the sim is suspended throughout. (01 §8.2) */
+export const TRANSITION_TICKS = 24;
+
+/** A normal door opens when the player's hitbox centre is this close to its centre. (01 §8.1) */
+export const DOOR_OPEN_RADIUS_PX = 24;
+
+/** UP must be held this long on the tile below a ladder to end the floor. (01 §8.4) */
+export const LADDER_HOLD_TICKS = 12;
+
+/** Fade out, then in, around a floor change. (01 §8.4) */
+export const FLOOR_FADE_TICKS = 30;
+
+/** Black screen between the death animation and the respawn. (01 §6) */
+export const DEATH_BLACK_TICKS = 30;
+
+/** Respawning restores at least this much HP. (01 §6) */
+export const RESPAWN_MIN_HP = 4;
+
+// ---------------------------------------------------------------------------
+// Enemies — 02-entities §2.2
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-type stats. M2 only needs `hp`, so inert enemies carry real health into the state
+ * hash; the behaviour that uses `speed` and `contactDamage` arrives with M3.
+ */
+export const ENEMY_STATS = {
+  skel_sword: { hp: 2, speed: 12, contactDamage: 1 },
+  skel_axe: { hp: 4, speed: 8, contactDamage: 2 },
+  zombie: { hp: 3, speed: 7, contactDamage: 1 },
+  wisp: { hp: 1, speed: 16, contactDamage: 1 },
+} as const;

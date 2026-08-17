@@ -93,12 +93,21 @@ describe('state hash', () => {
   });
 });
 
-// The collection sections of 05 §4's canonical order. They are empty until M2–M4 fill
-// them; these tests pin the order and the sorting so filling them cannot reorder the stream.
+// The collection sections of 05 §4's canonical order. Entities and traps now come from
+// level data; these tests pin the order and the flag sorting so filling the rest in M3–M4
+// cannot reorder the stream.
 describe('state hash — collection sections', () => {
-  const entity = (x: number) => ({ type: 1, x, y: 0, hp: 2, state: 0, stateTimer: 0 });
+  const entity = (x: number) => ({
+    type: 1,
+    x,
+    y: 0,
+    hp: 2,
+    state: 0,
+    stateTimer: 0,
+    drop: null,
+  });
 
-  it('covers entities, traps, doors and flags', () => {
+  it('covers entities, traps, doors and persistent flags', () => {
     const s = sim();
     const empty = s.hash();
 
@@ -106,15 +115,18 @@ describe('state hash — collection sections', () => {
     const withEntity = s.hash();
     expect(withEntity).not.toBe(empty);
 
-    s.traps.push({ phase: 7 });
+    s.traps.push({
+      def: { at: [1, 1], kind: 'spike', period: 120, offset: 0, alwaysOn: false, deadly: [1, 1] },
+      phase: 7,
+    });
     const withTrap = s.hash();
     expect(withTrap).not.toBe(withEntity);
 
-    s.doors.push({ open: 1 });
+    s.doorOpen.push(true);
     const withDoor = s.hash();
     expect(withDoor).not.toBe(withTrap);
 
-    s.flags.add('f1:d3:unlocked');
+    s.persistence.set('f1/d3/open');
     expect(s.hash()).not.toBe(withDoor);
   });
 
@@ -128,16 +140,18 @@ describe('state hash — collection sections', () => {
 
   it('hashes flags sorted, so insertion order cannot matter', () => {
     const a = sim();
-    a.flags.add('zeta').add('alpha');
+    a.persistence.set('zeta');
+    a.persistence.set('alpha');
     const b = sim();
-    b.flags.add('alpha').add('zeta');
+    b.persistence.set('alpha');
+    b.persistence.set('zeta');
     expect(a.hash()).toBe(b.hash());
   });
 
   it('covers the inventory fields', () => {
     const s = sim();
     const before = s.hash();
-    s.goldKey = true;
+    s.inventory.goldKey = true;
     expect(s.hash()).not.toBe(before);
   });
 
