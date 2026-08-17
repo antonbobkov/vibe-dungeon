@@ -1,7 +1,7 @@
 name: CI
 
-# Every "runs in CI" row of TESTING.md §1. Level lint (M2), replay (M5) and bench (M7)
-# steps are added when their tools exist.
+# Every "runs in CI" row of TESTING.md §1. The replay (M5) and bench (M7) steps are added
+# when their tools exist.
 
 on:
   push:
@@ -23,6 +23,8 @@ jobs:
         run: npm run typecheck
       - name: Lint (includes the src/sim purity rules)
         run: npm run lint
+      - name: Level lint
+        run: npm run lint:levels
       - name: Unit tests
         run: npm test -- --coverage
 

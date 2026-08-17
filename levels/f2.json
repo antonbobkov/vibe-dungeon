@@ -1,0 +1,391 @@
+{
+  "id": "f2",
+  "name": "The Vaults",
+  "rooms": [
+    {
+      "id": "R1",
+      "name": "Landing",
+      "map": [
+        "###DD####",
+        "#..cc...#",
+        "#.......#",
+        "#..ss...#",
+        "#.......#",
+        "#...@...#",
+        "#########"
+      ],
+      "traps": [
+        {
+          "at": [3, 3],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [4, 3],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "Spike Gallery",
+      "map": [
+        "###L######DD###",
+        "#.............#",
+        "#..s.s.s.s....#",
+        "#......c......D",
+        "#...s.s.s.s...D",
+        "#..cc.........#",
+        "####DD#########"
+      ],
+      "traps": [
+        {
+          "at": [3, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [5, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [7, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [9, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [4, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [6, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [8, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [10, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "Arrow Gallery",
+      "map": [
+        "##a##a##a#DD#",
+        "#...........#",
+        "#..c..c..c..#",
+        "D...........#",
+        "D...........#",
+        "#..c..c..c..#",
+        "#...........#",
+        "#############"
+      ],
+      "traps": [
+        {
+          "at": [2, 0],
+          "kind": "arrow",
+          "period": 90,
+          "offset": 0
+        },
+        {
+          "at": [5, 0],
+          "kind": "arrow",
+          "period": 90,
+          "offset": 30
+        },
+        {
+          "at": [8, 0],
+          "kind": "arrow",
+          "period": 90,
+          "offset": 60
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "Torch Shrine",
+      "map": [
+        "####PP#####",
+        "#.........#",
+        "#.u.....u.#",
+        "#.........#",
+        "#....1....#",
+        "#..c...c..#",
+        "#.u.....u.#",
+        "#....2....#",
+        "####DD#####"
+      ],
+      "enemies": [
+        {
+          "marker": "1",
+          "type": "zombie"
+        },
+        {
+          "marker": "2",
+          "type": "zombie"
+        }
+      ],
+      "torchGroups": [
+        {
+          "id": "G1",
+          "members": [
+            [2, 2],
+            [8, 2],
+            [2, 6],
+            [8, 6]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "Guard Hall",
+      "map": [
+        "#t#########t#",
+        "#...........#",
+        "#.....1.....#",
+        "D...........#",
+        "D...........#",
+        "#.....h.....#",
+        "#####PP######"
+      ],
+      "enemies": [
+        {
+          "marker": "1",
+          "type": "skel_axe"
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "name": "Key Vault",
+      "map": [
+        "###########",
+        "#c.......c#",
+        "#...sss...#",
+        "#...sks...#",
+        "#...sss...D",
+        "#.........D",
+        "#.........#",
+        "#c.......c#",
+        "####DD#####"
+      ],
+      "traps": [
+        {
+          "at": [4, 2],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [5, 2],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [6, 2],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [4, 3],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [6, 3],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [4, 4],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [5, 4],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        },
+        {
+          "at": [6, 4],
+          "kind": "spike",
+          "period": 180,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "name": "Descent",
+      "map": ["###V###", "#.....#", "#.c.c.#", "#..c..#", "#.....#", "###L###"]
+    }
+  ],
+  "doors": [
+    {
+      "id": "d1",
+      "type": "normal",
+      "a": {
+        "room": "R1",
+        "cells": [
+          [3, 0],
+          [4, 0]
+        ]
+      },
+      "b": {
+        "room": "R2",
+        "cells": [
+          [4, 6],
+          [5, 6]
+        ]
+      }
+    },
+    {
+      "id": "d2",
+      "type": "gap",
+      "a": {
+        "room": "R2",
+        "cells": [
+          [14, 3],
+          [14, 4]
+        ]
+      },
+      "b": {
+        "room": "R3",
+        "cells": [
+          [0, 3],
+          [0, 4]
+        ]
+      }
+    },
+    {
+      "id": "d3",
+      "type": "normal",
+      "a": {
+        "room": "R3",
+        "cells": [
+          [10, 0],
+          [11, 0]
+        ]
+      },
+      "b": {
+        "room": "R4",
+        "cells": [
+          [4, 8],
+          [5, 8]
+        ]
+      }
+    },
+    {
+      "id": "d4",
+      "type": "puzzle",
+      "a": {
+        "room": "R4",
+        "cells": [
+          [4, 0],
+          [5, 0]
+        ]
+      },
+      "b": {
+        "room": "R5",
+        "cells": [
+          [5, 6],
+          [6, 6]
+        ]
+      }
+    },
+    {
+      "id": "d5",
+      "type": "gap",
+      "a": {
+        "room": "R5",
+        "cells": [
+          [0, 3],
+          [0, 4]
+        ]
+      },
+      "b": {
+        "room": "R6",
+        "cells": [
+          [10, 4],
+          [10, 5]
+        ]
+      }
+    },
+    {
+      "id": "d6",
+      "type": "normal",
+      "a": {
+        "room": "R6",
+        "cells": [
+          [4, 8],
+          [5, 8]
+        ]
+      },
+      "b": {
+        "room": "R2",
+        "cells": [
+          [10, 0],
+          [11, 0]
+        ]
+      }
+    },
+    {
+      "id": "d7",
+      "type": "silver",
+      "a": {
+        "room": "R2",
+        "cells": [[3, 0]]
+      },
+      "b": {
+        "room": "R7",
+        "cells": [[3, 5]]
+      }
+    }
+  ],
+  "wiring": [
+    {
+      "trigger": {
+        "kind": "torch_group",
+        "group": "G1"
+      },
+      "effects": [
+        {
+          "kind": "open_door",
+          "door": "d4"
+        }
+      ]
+    }
+  ]
+}

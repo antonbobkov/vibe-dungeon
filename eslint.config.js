@@ -88,11 +88,13 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector: ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[^.]/]',
+          selector:
+            ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[^.]/]',
           message: `src/sim must be self-contained and headless: no packages or node builtins (${SIM} rule 6).`,
         },
         {
-          selector: ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[.][.]/]',
+          selector:
+            ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[.][.]/]',
           message: `src/sim may only import its own siblings — no DOM, canvas, assets or renderer (${SIM} rule 6).`,
         },
         {

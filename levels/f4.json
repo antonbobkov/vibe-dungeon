@@ -1,0 +1,459 @@
+{
+  "id": "f4",
+  "name": "The Deep Vault",
+  "rooms": [
+    {
+      "id": "R1",
+      "name": "Threshold",
+      "map": [
+        "##f##DD##",
+        "#.......#",
+        "#..s.s..#",
+        "#.......#",
+        "#.s.s.c.#",
+        "#.......#",
+        "#...@...#",
+        "#########"
+      ],
+      "traps": [
+        {
+          "at": [2, 0],
+          "kind": "flame_down",
+          "period": 150,
+          "offset": 0
+        },
+        {
+          "at": [3, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [5, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [2, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 30
+        },
+        {
+          "at": [4, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 90
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "Gauntlet of the Deep",
+      "map": [
+        "###a####DD###a###",
+        "#...............#",
+        "#..s.s.s.s.s.s..#",
+        "#...............#",
+        "#.p...s.s.s....b<",
+        "#...............#",
+        "#..s.s.s.s.s.s..#",
+        "#...c.......c...#",
+        "#######DD########"
+      ],
+      "traps": [
+        {
+          "at": [3, 0],
+          "kind": "arrow",
+          "period": 45,
+          "offset": 0
+        },
+        {
+          "at": [13, 0],
+          "kind": "arrow",
+          "period": 45,
+          "offset": 22
+        },
+        {
+          "at": [3, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [5, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 20
+        },
+        {
+          "at": [7, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 40
+        },
+        {
+          "at": [9, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [11, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 80
+        },
+        {
+          "at": [13, 2],
+          "kind": "spike",
+          "period": 120,
+          "offset": 100
+        },
+        {
+          "at": [6, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 30
+        },
+        {
+          "at": [8, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 70
+        },
+        {
+          "at": [10, 4],
+          "kind": "spike",
+          "period": 120,
+          "offset": 110
+        },
+        {
+          "at": [3, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 100
+        },
+        {
+          "at": [5, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 80
+        },
+        {
+          "at": [7, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 60
+        },
+        {
+          "at": [9, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 40
+        },
+        {
+          "at": [11, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 20
+        },
+        {
+          "at": [13, 6],
+          "kind": "spike",
+          "period": 120,
+          "offset": 0
+        },
+        {
+          "at": [16, 4],
+          "kind": "flame_left",
+          "period": 150,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "Antechamber of Flame",
+      "map": [
+        "####PP#####",
+        "#u.......u#",
+        "#.........#",
+        "#.........#",
+        "#....1....#",
+        "#.........#",
+        "#.........#",
+        "#u.......u#",
+        "####DD#####"
+      ],
+      "enemies": [
+        {
+          "marker": "1",
+          "type": "zombie"
+        }
+      ],
+      "torchGroups": [
+        {
+          "id": "G2",
+          "members": [
+            [1, 1],
+            [9, 1],
+            [1, 7],
+            [9, 7]
+          ],
+          "window": 600
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "The Arena",
+      "map": [
+        "######DD#######",
+        "#.............#",
+        "#..##.....##..#",
+        "#..##.....##..#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#..##.....##..#",
+        "#..##.....##..#",
+        "#.............#",
+        "#####PP########"
+      ],
+      "combatSeal": true,
+      "waves": [
+        [
+          {
+            "type": "skel_sword",
+            "at": [7, 2]
+          },
+          {
+            "type": "skel_sword",
+            "at": [3, 5]
+          },
+          {
+            "type": "skel_sword",
+            "at": [11, 5]
+          }
+        ],
+        [
+          {
+            "type": "skel_axe",
+            "at": [4, 5]
+          },
+          {
+            "type": "skel_axe",
+            "at": [10, 5]
+          },
+          {
+            "type": "wisp",
+            "at": [7, 6]
+          }
+        ],
+        [
+          {
+            "type": "zombie",
+            "at": [7, 2]
+          },
+          {
+            "type": "skel_sword",
+            "at": [3, 5]
+          },
+          {
+            "type": "skel_sword",
+            "at": [11, 5]
+          },
+          {
+            "type": "wisp",
+            "at": [7, 8]
+          }
+        ]
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "Vault Approach",
+      "map": [
+        "#w##GG###w#",
+        "#.........#",
+        "#..c.c.c..#",
+        "#.........#",
+        "#..c.c.c..#",
+        "#.........#",
+        "####DD#####"
+      ]
+    },
+    {
+      "id": "R6",
+      "name": "The Great Vault",
+      "map": [
+        "#t#####t#",
+        "#ccc.ccc#",
+        "#...M...#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "#.......#",
+        "####GG###"
+      ],
+      "props": [
+        {
+          "at": [4, 2],
+          "kind": "chest",
+          "contents": [
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin",
+            "coin"
+          ]
+        }
+      ]
+    }
+  ],
+  "doors": [
+    {
+      "id": "d1",
+      "type": "normal",
+      "a": {
+        "room": "R1",
+        "cells": [
+          [5, 0],
+          [6, 0]
+        ]
+      },
+      "b": {
+        "room": "R2",
+        "cells": [
+          [7, 8],
+          [8, 8]
+        ]
+      }
+    },
+    {
+      "id": "d2",
+      "type": "normal",
+      "a": {
+        "room": "R2",
+        "cells": [
+          [8, 0],
+          [9, 0]
+        ]
+      },
+      "b": {
+        "room": "R3",
+        "cells": [
+          [4, 8],
+          [5, 8]
+        ]
+      }
+    },
+    {
+      "id": "d3",
+      "type": "puzzle",
+      "a": {
+        "room": "R3",
+        "cells": [
+          [4, 0],
+          [5, 0]
+        ]
+      },
+      "b": {
+        "room": "R4",
+        "cells": [
+          [5, 10],
+          [6, 10]
+        ]
+      }
+    },
+    {
+      "id": "d4",
+      "type": "normal",
+      "a": {
+        "room": "R4",
+        "cells": [
+          [6, 0],
+          [7, 0]
+        ]
+      },
+      "b": {
+        "room": "R5",
+        "cells": [
+          [4, 6],
+          [5, 6]
+        ]
+      }
+    },
+    {
+      "id": "d5",
+      "type": "gold",
+      "a": {
+        "room": "R5",
+        "cells": [
+          [4, 0],
+          [5, 0]
+        ]
+      },
+      "b": {
+        "room": "R6",
+        "cells": [
+          [4, 7],
+          [5, 7]
+        ]
+      }
+    }
+  ],
+  "wiring": [
+    {
+      "trigger": {
+        "kind": "torch_group",
+        "group": "G2"
+      },
+      "effects": [
+        {
+          "kind": "open_door",
+          "door": "d3"
+        }
+      ]
+    },
+    {
+      "trigger": {
+        "kind": "room_clear",
+        "room": "R4"
+      },
+      "effects": [
+        {
+          "kind": "spawn",
+          "room": "R4",
+          "at": [7, 5],
+          "pickup": "gold_key"
+        },
+        {
+          "kind": "spawn",
+          "room": "R4",
+          "at": [8, 5],
+          "pickup": "red_large"
+        }
+      ]
+    },
+    {
+      "trigger": {
+        "kind": "chest_open",
+        "room": "R6",
+        "at": [4, 2]
+      },
+      "effects": [
+        {
+          "kind": "victory"
+        }
+      ]
+    }
+  ]
+}

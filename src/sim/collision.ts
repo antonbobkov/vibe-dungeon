@@ -37,6 +37,14 @@ export function diagAxis(speed: number): number {
   return (speed * DIAG_NUM) >> DIAG_SHIFT;
 }
 
+/** Centre of an entity's hitbox, in subpixels — the point 01 §8 measures door proximity from. */
+export function boxCentre(box: Box, pos: Vec): Vec {
+  return {
+    x: pos.x + box.offX * SUBPX + (box.w * SUBPX) / 2,
+    y: pos.y + box.offY * SUBPX + (box.h * SUBPX) / 2,
+  };
+}
+
 /** Tile column/row containing a subpixel coordinate. */
 function cellOf(sub: number): number {
   return Math.floor(sub / TILE_SUBPX);
