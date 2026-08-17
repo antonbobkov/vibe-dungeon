@@ -175,3 +175,43 @@ export const WISP_WOBBLE_SHIFT = 6;
 export const WISP_WOBBLE_PERIOD = 4;
 /** The integer sine table of 02 §2.4, verbatim. */
 export const SIN = [0, 24, 45, 59, 64, 59, 45, 24, 0, -24, -45, -59, -64, -59, -45, -24] as const;
+
+// ---------------------------------------------------------------------------
+// Traps — 02-entities §3
+// ---------------------------------------------------------------------------
+
+/** The deadly window is the last two fifths of the cycle: `phase >= (3 * period) / 5`. */
+export const TRAP_DEADLY_NUM = 3;
+export const TRAP_DEADLY_DEN = 5;
+
+/** Every trap deals one point of damage (01 §5.1). */
+export const TRAP_DAMAGE = 1;
+
+/** A bolt: 4 × 10 px centred in its 16-wide lane, falling 40 subpx/tick (02 §3.2). */
+export const BOLT_BOX = { offX: 6, offY: 0, w: 4, h: 10 } as const;
+export const BOLT_SPEED = 40;
+
+// ---------------------------------------------------------------------------
+// Props — 02-entities §4
+// ---------------------------------------------------------------------------
+
+/** A chest takes 16 ticks to open, then hands over its contents (02 §4.1). */
+export const CHEST_OPEN_TICKS = 16;
+
+/** A crate takes 12 ticks to come apart, then leaves its drop (02 §4.2). */
+export const CRATE_DESTROY_TICKS = 12;
+
+/** Six consecutive contact ticks charge a push; the slide itself takes twelve (02 §4.2). */
+export const PUSH_CHARGE_TICKS = 6;
+export const PUSH_SLIDE_TICKS = 12;
+
+// ---------------------------------------------------------------------------
+// Waves and seals — 02-entities §2.3, 01-mechanics §8.3
+// ---------------------------------------------------------------------------
+
+/** A spawn cursor blinks on the tile for 30 ticks before anything appears (02 §2.3). */
+export const SPAWN_TELEGRAPH_TICKS = 30;
+/** Then the enemy blinks in for 12, inactive and unhittable. */
+export const SPAWN_BLINK_TICKS = 12;
+/** The next wave follows 30 ticks after the last of the previous one dies. */
+export const WAVE_GAP_TICKS = 30;

@@ -18,6 +18,7 @@ import {
   DOOR_OPEN_RADIUS_PX,
   DYING_TICKS,
   ENEMY_KNOCKBACK_DECAY,
+  TRAP_DAMAGE,
   ENEMY_STATS,
   HIT_STOP_TICKS,
   SWORD_DAMAGE,
@@ -53,7 +54,6 @@ import {
   type LoadedDoor,
   type LoadedFloor,
   type LoadedRoom,
-  type LoadedTrap,
   type PickupName,
 } from './level.js';
 import { grantPickup, type Inventory } from './pickups.js';
@@ -74,12 +74,17 @@ import {
   type Player,
 } from './player.js';
 import { TileClass, isSolid, setTile, tileAt, type Room } from './room.js';
-
-/** A trap placement in the current room; only its phase is hashed (05 §4). */
-export interface SimTrap {
-  def: LoadedTrap;
-  phase: number;
-}
+import {
+  advanceBolt,
+  boltAt,
+  boltBlocked,
+  boltRect,
+  deadlyTiles,
+  isFiring,
+  trapPhase,
+  type SimBolt,
+  type SimTrap,
+} from './trap.js';
 
 /**
  * A pickup still lying in the current room. Map pickups persist once collected (01 §9);
@@ -190,7 +195,12 @@ export class Sim {
   room!: Room;
   entities: SimEntity[] = [];
   traps: SimTrap[] = [];
+  /** Bolts in flight, in spawn order — 01 §1 phase 5 (02 §3.2). */
+  bolts: SimBolt[] = [];
   pickups: SimPickup[] = [];
+  /** Tiles a trap makes deadly this tick, recomputed in phase 6. */
+  deadly: Cell[] = [];
+  private nextBoltId = 0;
 
   /** Play-time ticks (01 §1 phase 2). Pause does not advance it (01 §10). */
   playTick = 0;
@@ -298,16 +308,23 @@ export class Sim {
 
     // 4. Enemy updates, ascending spawn id (02 §2).
     this.updateEnemies();
-    // 5. Projectile updates, ascending spawn order — M4.
-    // 6. Trap updates: advance phase counters, compute deadly sets (02 §3; damage is M4).
+    // 5. Projectile updates, ascending spawn order (02 §3.2).
+    this.updateBolts();
+
+    // 6. Trap updates: advance phase counters, compute deadly sets (02 §3).
     for (const trap of this.traps) {
-      trap.phase = (this.roomTimer + trap.def.offset) % trap.def.period;
+      trap.phase = trapPhase(trap.def, this.roomTimer);
+      if (isFiring(trap.def, trap.phase)) {
+        this.bolts.push(boltAt(this.nextBoltId++, trap.def.at));
+      }
     }
+    this.deadly = deadlyTiles(this.traps);
 
     // 7. Overlap resolution: pickups, damage, then trigger zones (01 §1).
     this.collectPickups();
     this.resolveSwordHits();
     this.resolveContactDamage();
+    this.resolveTrapDamage();
     this.openNearbyDoors();
     this.unlockDoors();
     this.checkLadder();
@@ -435,8 +452,12 @@ export class Sim {
             createEntity(index, e.type, e.at[0] * TILE_SUBPX, e.at[1] * TILE_SUBPX, e.drop),
           );
 
-    // Trap phase counters reset to their per-placement offsets (01 §9).
-    this.traps = def.traps.map((def_) => ({ def: def_, phase: def_.offset % def_.period }));
+    // Trap phase counters reset to their per-placement offsets, and nothing is in flight
+    // (01 §9).
+    this.traps = def.traps.map((trap) => ({ def: trap, phase: trapPhase(trap, 0) }));
+    this.deadly = deadlyTiles(this.traps);
+    this.bolts = [];
+    this.nextBoltId = 0;
 
     this.pendingWave = def.waves.length > 0 && !cleared ? 0 : -1;
     this.seal = 0;
@@ -557,6 +578,38 @@ export class Sim {
   }
 
   // -------------------------------------------------------------------------
+  // Phase 5 — projectiles (02 §3.2)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Bolts fall 40 subpx a tick and stop for a wall, a closed door, any crate, the player, or
+   * the edge of the room. They pass over pits, pickups, spikes and enemies.
+   */
+  private updateBolts(): void {
+    if (this.bolts.length === 0) return;
+
+    const hurtBox = boxRect(PLAYER_BOX, this.player);
+    const flying: SimBolt[] = [];
+
+    for (const bolt of this.bolts) {
+      advanceBolt(bolt);
+
+      const rect = boltRect(bolt);
+      if (rectsOverlap(rect, hurtBox)) {
+        if (damagePlayer(this.player, TRAP_DAMAGE, rectCentre(rect))) {
+          this.hitStop = HIT_STOP_TICKS;
+        }
+        continue; // spent, whether it landed or the player was already invulnerable
+      }
+      if (boltBlocked(this.room, bolt)) continue;
+
+      flying.push(bolt);
+    }
+
+    this.bolts = flying;
+  }
+
+  // -------------------------------------------------------------------------
   // Phase 7 — overlaps and trigger zones
   // -------------------------------------------------------------------------
 
@@ -630,6 +683,27 @@ export class Sim {
         this.hitStop = HIT_STOP_TICKS;
       }
       return; // one source of damage per tick; i-frames would refuse the rest anyway
+    }
+  }
+
+  /**
+   * Standing on a deadly tile costs a heart (01 §5.1). The knockback comes from the trap
+   * tile's centre, per 01 §5.2, and enemies are immune to all of it (02 §2.1).
+   */
+  private resolveTrapDamage(): void {
+    if (this.deadly.length === 0) return;
+    const hurtBox = boxRect(PLAYER_BOX, this.player);
+
+    for (const [col, row] of this.deadly) {
+      const tile = {
+        l: col * TILE_SUBPX,
+        t: row * TILE_SUBPX,
+        r: (col + 1) * TILE_SUBPX,
+        b: (row + 1) * TILE_SUBPX,
+      };
+      if (!rectsOverlap(hurtBox, tile)) continue;
+      if (damagePlayer(this.player, TRAP_DAMAGE, rectCentre(tile))) this.hitStop = HIT_STOP_TICKS;
+      return; // one source of damage per tick; i-frames would refuse the rest
     }
   }
 
@@ -800,6 +874,12 @@ export class Sim {
       h = writeInt32(h, e.hp);
       h = writeInt32(h, e.state);
       h = writeInt32(h, e.stateTimer);
+    }
+    // Bolts are not in 05 §4's field list — it predates them having state — so they hash
+    // here, right after the entities they fly among, before the traps that fired them.
+    for (const bolt of this.bolts) {
+      h = writeInt32(h, bolt.x);
+      h = writeInt32(h, bolt.y);
     }
     for (const trap of this.traps) h = writeInt32(h, trap.phase);
     for (const open of this.doorOpen) h = writeInt32(h, open ? 1 : 0);
