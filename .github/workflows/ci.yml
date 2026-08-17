@@ -1,0 +1,36 @@
+name: CI
+
+# Every "runs in CI" row of TESTING.md §1. Level lint (M2), replay (M5) and bench (M7)
+# steps are added when their tools exist.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint (includes the src/sim purity rules)
+        run: npm run lint
+      - name: Unit tests
+        run: npm test -- --coverage
+
+      # CI has no art_assets/ (repo policy), so the browser build runs in placeholder-art
+      # mode — TESTING.md §5.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: E2E
+        run: npm run test:e2e
+        env:
+          PLACEHOLDER_ART: '1'

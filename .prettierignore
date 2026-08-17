@@ -1,0 +1,10 @@
+art_assets/
+asset_reference/
+coverage/
+dist/
+playwright-report/
+test-results/
+package-lock.json
+
+# Documentation is hand-formatted (spec tables, ASCII maps) — leave it alone.
+*.md
