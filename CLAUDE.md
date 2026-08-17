@@ -29,19 +29,3 @@ by `.gitignore`:
 The ignore rules are extension-based, so a text file placed inside either directory *will* still be
 tracked. If you add a new kind of binary output, add its extension to `.gitignore` in the same
 commit.
-
-## Repository layout
-
-| Path | Tracked | Contents |
-|---|---|---|
-| `ASSET_GUIDE.md` | yes | Full pixel-verified map of every art asset — tile tables, animation frame counts, room-building recipes |
-| `CLAUDE.md` | yes | This file |
-| `.gitignore` | yes | Binary exclusion rules |
-| `spec/` | yes | Game specification for **Undervault** (00-overview through 05-data-formats) — start at `spec/00-overview.md` |
-| `IMPLEMENTATION_PLAN.md` | yes | Build milestones M0–M7 with machine-checkable acceptance criteria |
-| `TESTING.md` | yes | Test/verification strategy (headless deterministic sim, replays, level lint, e2e) |
-| `art_assets/` | **no** | Source art packs (PNG / GIF / Aseprite) |
-| `asset_reference/` | **no** | Generated annotated reference images |
-
-`ASSET_GUIDE.md` references files under `asset_reference/` by name. Those links resolve only in a
-local checkout that has the images; that is expected.
