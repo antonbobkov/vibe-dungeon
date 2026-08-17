@@ -82,26 +82,22 @@ export default tseslint.config(
         { name: 'performance', message: `No wall-clock time in the sim (${SIM} rule 6).` },
         { name: 'Date', message: `No wall-clock time in the sim (${SIM} rule 6).` },
       ],
-      'no-restricted-imports': [
+      // Only sibling modules inside src/sim may be imported: no packages, no node
+      // builtins, no reaching into src/render or src/assets. Precise AST selectors, so
+      // that "./room.js" is allowed and "node:fs" is not.
+      'no-restricted-syntax': [
         'error',
         {
-          patterns: [
-            {
-              // Bare specifiers (packages, node builtins) and any path that escapes
-              // src/sim. Only intra-sim relative imports are allowed.
-              group: [
-                '*',
-                '*/*',
-                '@*/**',
-                'node:*',
-                '../render/**',
-                '../assets/**',
-                '../main*',
-                '../../**',
-              ],
-              message: `src/sim must be self-contained and headless (${SIM} rule 6).`,
-            },
-          ],
+          selector: ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[^.]/]',
+          message: `src/sim must be self-contained and headless: no packages or node builtins (${SIM} rule 6).`,
+        },
+        {
+          selector: ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration)[source.value=/^[.][.]/]',
+          message: `src/sim may only import its own siblings — no DOM, canvas, assets or renderer (${SIM} rule 6).`,
+        },
+        {
+          selector: 'ImportExpression[source.value=/^[^.]/]',
+          message: `src/sim must be self-contained and headless (${SIM} rule 6).`,
         },
       ],
     },

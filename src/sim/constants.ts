@@ -37,3 +37,35 @@ export const ROOM_MIN_H = 4;
 
 /** Universal void colour; fills space around rooms smaller than the play area. (AG §2.3) */
 export const CLEAR_COLOR = '#25131a';
+
+// ---------------------------------------------------------------------------
+// Player — 01-mechanics §3.3 (movement), §4.1 (states), §5.1 (health)
+// ---------------------------------------------------------------------------
+
+/** 20 subpx/tick = 1.25 px/tick = 75 px/s. (01 §3.3) */
+export const WALK_SPEED = 20;
+
+/**
+ * Diagonal factor: `v_axis = (v * 181) >> 8` (00-overview §Determinism rule 3).
+ * Applied to the magnitude — `>>` floors toward −∞, so signing first would make left and
+ * up faster than right and down. See `diagAxis()` in movement code.
+ */
+export const DIAG_NUM = 181;
+export const DIAG_SHIFT = 8;
+
+/** Player "feet box": 10 × 8 px at offset (3, 8) from the sprite cell's top-left. (01 §3.3) */
+export const PLAYER_BOX = { offX: 3, offY: 8, w: 10, h: 8 } as const;
+
+/** HUD shows 3 hearts at half-heart granularity. (01 §5.1) */
+export const MAX_HP = 6;
+
+/** Invulnerability after any damage. (01 §5.1) */
+export const IFRAME_TICKS = 60;
+
+/** Player state durations. (01 §4.1) — the transitions themselves land with combat, M3. */
+export const SWING_TICKS = 14;
+export const HURT_TICKS = 12;
+export const DYING_TICKS = 60;
+
+/** Sim freeze when a swing connects; skips phases 3–9. (01 §1, §4.2) */
+export const HIT_STOP_TICKS = 3;
