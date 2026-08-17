@@ -1,0 +1,42 @@
+{
+  "floor": "f2",
+  "room": "R2",
+  "at": [
+    3,
+    2
+  ],
+  "start": {
+    "hp": 6,
+    "treasure": 0,
+    "deaths": 0
+  },
+  "inputs": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "asserts": [
+    {
+      "tick": 0,
+      "expect": {
+        "room": "R2",
+        "hp": 6
+      }
+    },
+    {
+      "tick": 71,
+      "expect": {
+        "hp": 6
+      }
+    },
+    {
+      "tick": 72,
+      "expect": {
+        "hp": 5
+      }
+    },
+    {
+      "tick": 272,
+      "expect": {
+        "hp": 5,
+        "deaths": 0
+      }
+    }
+  ]
+}

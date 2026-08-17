@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ATTACK, DOWN, RIGHT, UP } from '../../src/sim/input.js';
+import { ATTACK, DOWN, LEFT, RIGHT, UP } from '../../src/sim/input.js';
 import {
   CRATE_DESTROY_TICKS,
   PUSH_CHARGE_TICKS,
@@ -9,7 +9,8 @@ import {
 } from '../../src/sim/constants.js';
 import { createEntity } from '../../src/sim/enemy.js';
 import { pitFlag, propFlag } from '../../src/sim/persistence.js';
-import { PropState } from '../../src/sim/prop.js';
+import { Dir8 } from '../../src/sim/geometry.js';
+import { PropState, slideTarget } from '../../src/sim/prop.js';
 import { TileClass, parseRoom, tileAt } from '../../src/sim/room.js';
 import { Sim } from '../../src/sim/sim.js';
 import { game, hold, runUntil } from './helpers.js';
@@ -304,5 +305,40 @@ describe('in the real levels', () => {
     runUntil(s, DOWN, (sim) => crateOf(sim).at[1] === 7, 200);
     s.enterRoom(s.roomIndex, s.player.x, s.player.y, s.player.facing);
     expect(crateOf(s).at).toEqual([6, 6]);
+  });
+});
+
+// 02-entities §4.2: "one tile in the push direction" — and only ever a cardinal one.
+describe('which way a crate goes', () => {
+  /** Each face of the crate at (4,2), with the player flush against it. */
+  const faces: [string, number, { x: number; y: number }, [number, number]][] = [
+    ['from the west', RIGHT, FLUSH_LEFT_OF_CRATE, [5, 2]],
+    ['from the east', LEFT, { x: 5 * TILE_SUBPX - 48, y: 2 * TILE_SUBPX }, [3, 2]],
+    ['from the north', DOWN, { x: 4 * TILE_SUBPX, y: 1 * TILE_SUBPX }, [4, 3]],
+    ['from the south', UP, { x: 4 * TILE_SUBPX, y: 3 * TILE_SUBPX - 128 }, [4, 1]],
+  ];
+
+  for (const [name, input, start, destination] of faces) {
+    it(`pushes ${name} to ${destination.join(',')}`, () => {
+      const s = yard(YARD, start);
+      const crate = crateOf(s);
+
+      hold(s, input, PUSH_CHARGE_TICKS);
+      expect(crate.state).toBe(PropState.SLIDING);
+      expect(crate.slideTo).toEqual(destination);
+
+      hold(s, input, PUSH_SLIDE_TICKS);
+      expect(crate.at).toEqual(destination);
+      expect(tileAt(s.room, destination[0], destination[1])).toBe(TileClass.PROP);
+      expect(tileAt(s.room, 4, 2)).toBe(
+        destination[0] === 4 && destination[1] === 2 ? TileClass.PROP : TileClass.FLOOR,
+      );
+    });
+  }
+
+  it('never slides diagonally', () => {
+    for (const dir of [Dir8.UL, Dir8.UR, Dir8.DL, Dir8.DR]) {
+      expect(slideTarget([4, 2], dir)).toBeNull();
+    }
   });
 });

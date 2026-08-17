@@ -65,6 +65,9 @@ export enum EnemyState {
   LUNGE = 3,
   RECOVER = 4,
   DYING = 5,
+  /** Blinking in from a wave spawn: inactive and unhittable (02 §2.3). Appended so the
+   * values above, which the state hash carries, do not move. */
+  SPAWNING = 6,
 }
 
 export interface SimEntity {
@@ -103,9 +106,9 @@ export function isKnockbackResistant(kind: EnemyType): boolean {
   return kind === 'skel_axe' || kind === 'zombie';
 }
 
-/** A DYING enemy neither collides nor damages (02 §2.1). */
+/** A dying or still-materialising enemy neither collides nor damages (02 §2.1, §2.3). */
 export function isActive(entity: SimEntity): boolean {
-  return entity.state !== EnemyState.DYING;
+  return entity.state !== EnemyState.DYING && entity.state !== EnemyState.SPAWNING;
 }
 
 export function createEntity(
@@ -286,6 +289,15 @@ function withinPx(from: Vec, to: Vec, px: number): boolean {
 
 /** Phase 4 of the tick (01 §1). Hitstun pauses everything but the knockback carrying it. */
 export function updateEnemy(entity: SimEntity, ctx: EnemyContext): void {
+  if (entity.state === EnemyState.SPAWNING) {
+    // 02 §2.3: twelve ticks of blink-in before it can act or be acted upon.
+    entity.stateTimer--;
+    if (entity.stateTimer <= 0) {
+      entity.state = EnemyState.IDLE;
+      entity.stateTimer = 0;
+    }
+    return;
+  }
   if (entity.state === EnemyState.DYING || entity.hitstun > 0) return;
 
   switch (entity.kind) {

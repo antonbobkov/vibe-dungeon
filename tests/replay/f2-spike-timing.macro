@@ -1,0 +1,20 @@
+# Floor 2, the Spike Gallery: the deadly window, measured where it matters.
+#
+# The player stands on the spike at (3,2). Its row runs at period 120 with offset 0, so
+# `phase = roomTimer` and 02 §3's window opens at (3 * 120) / 5 = 72. Tick 71 is the last
+# safe one; tick 72 is the first that costs a heart.
+
+floor f2
+room R2
+at 3,2
+
+assert room=R2 hp=6
+
+W 71
+assert hp=6              # phase 71: still retracted
+
+W 1
+assert hp=5              # phase 72: the window opens
+
+W 200
+assert hp=5 deaths=0     # and i-frames plus the cycle keep it at one hit

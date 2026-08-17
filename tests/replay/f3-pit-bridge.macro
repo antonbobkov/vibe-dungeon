@@ -1,0 +1,14 @@
+# f3 R2 "The Trench" — the pit row cuts the room in two and the only way north is to push
+# the crate at (6,4) into it (02-entities §4.2). Two pushes: (6,4) -> (6,3) -> into the pit,
+# where the crate is consumed and the cell becomes a permanent bridge. The two coins on the
+# far side are unreachable without it.
+floor f3
+room R2
+at 6,5
+assert room=R2 hp=6 treasure=0
+
+U 85                       # charge, push, charge, push, then walk over the bridge
+assert room=R2 hp=6        # across the trench, unhurt
+
+L 40                       # west along row 1, over both coins
+assert room=R2 hp=6 treasure=2

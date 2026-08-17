@@ -18,6 +18,9 @@ import {
   DOOR_OPEN_RADIUS_PX,
   DYING_TICKS,
   PUSH_CHARGE_TICKS,
+  SPAWN_BLINK_TICKS,
+  SPAWN_TELEGRAPH_TICKS,
+  WAVE_GAP_TICKS,
   ENEMY_KNOCKBACK_DECAY,
   TRAP_DAMAGE,
   ENEMY_STATS,
@@ -63,8 +66,10 @@ import {
   type Cell,
   type LoadedDoor,
   type LoadedFloor,
+  type EnemyType,
   type LoadedRoom,
   type PickupName,
+  type WireSpec,
 } from './level.js';
 import { grantPickup, type Inventory } from './pickups.js';
 import {
@@ -76,6 +81,7 @@ import {
   pitFlag,
   propFlag,
   torchFlag,
+  wireFlag,
 } from './persistence.js';
 import {
   PropState,
@@ -121,6 +127,14 @@ export interface SimPickup {
   at: Cell;
   kind: PickupName;
   fromMap: boolean;
+}
+
+/** A spawn cursor blinking on its tile before a wave enemy appears (02 §2.3). */
+export interface SimTelegraph {
+  at: Cell;
+  kind: EnemyType;
+  drop: PickupName | null;
+  ticksLeft: number;
 }
 
 /** Where the player respawns after a death (01 §6). */
@@ -233,6 +247,12 @@ export class Sim {
   /** Triggers raised this tick, for the wiring phase to read (03 §1.6). */
   openedChests: Cell[] = [];
   litGroups: string[] = [];
+  clearedRooms: string[] = [];
+  /** Spawn cursors counting down on their tiles (02 §2.3). */
+  telegraphs: SimTelegraph[] = [];
+  /** Ticks until the next wave, or −1 when nothing is waiting. */
+  waveGap = -1;
+  private nextEntityId = 0;
   private nextBoltId = 0;
 
   /** Play-time ticks (01 §1 phase 2). Pause does not advance it (01 §10). */
@@ -324,6 +344,9 @@ export class Sim {
       return;
     }
 
+    // 04-ui §3.3: victory stops the sim where it stands.
+    if (this.victory) return;
+
     // Transitions and death sequences suspend the loop with their own scripted ticks (01 §1).
     if (this.script) {
       this.advanceScript();
@@ -343,6 +366,7 @@ export class Sim {
     this.updateEnemies();
     this.openedChests = [];
     this.litGroups = [];
+    this.clearedRooms = [];
 
     // 5. Projectile updates, ascending spawn order (02 §3.2).
     this.updateBolts();
@@ -372,8 +396,13 @@ export class Sim {
     this.checkLadder();
     this.checkTransition();
 
-    // 8. Wiring evaluation — M4.
-    // 9. Room bookkeeping: combat seal, waves, cleared flags — M4.
+    // 8. Wiring evaluation: triggers raised above, effects applied here (03 §1.6).
+    this.evaluateWiring();
+
+    // 9. Room bookkeeping: waves, then the seal they hold shut (02 §2.3, 01 §8.3).
+    this.updateWaves();
+    this.updateSeal();
+    this.evaluateWiring(); // a room cleared just now fires its wire on the same tick
     // 10. State hash: on request only, via hash().
   }
 
@@ -497,11 +526,18 @@ export class Sim {
     // Enemies: respawned at their map positions, full HP (01 §9). A cleared combat_seal room
     // never respawns them.
     const cleared = this.persistence.has(clearedFlag(floorId, def.id));
+    this.nextEntityId = 0;
     this.entities =
       def.combatSeal && cleared
         ? []
-        : def.enemies.map((e, index) =>
-            createEntity(index, e.type, e.at[0] * TILE_SUBPX, e.at[1] * TILE_SUBPX, e.drop),
+        : def.enemies.map((e) =>
+            createEntity(
+              this.nextEntityId++,
+              e.type,
+              e.at[0] * TILE_SUBPX,
+              e.at[1] * TILE_SUBPX,
+              e.drop,
+            ),
           );
 
     // Trap phase counters reset to their per-placement offsets, and nothing is in flight
@@ -511,13 +547,24 @@ export class Sim {
     this.bolts = [];
     this.nextBoltId = 0;
 
+    this.restoreWiredPickups(def);
+
+    // Waves start over on entry unless the room is done with (01 §9). Wave 1 telegraphs
+    // immediately — 02 §2.3 puts it on room entry, not a tick later — which is also what
+    // makes the seal shut before the player has moved.
+    this.telegraphs = [];
+    this.waveGap = -1;
     this.pendingWave = def.waves.length > 0 && !cleared ? 0 : -1;
+    if (this.pendingWave === 0) this.beginWave();
     this.seal = 0;
 
     this.player.x = x;
     this.player.y = y;
     this.player.facing = facing;
     this.checkpoint = { x, y, facing, hp: this.player.hp };
+
+    // A combat seal shuts before the player has taken a step (01 §8.3).
+    this.updateSeal();
   }
 
   /**
@@ -1115,6 +1162,187 @@ export class Sim {
       dir: entryPlacement(target, end.cells, end.wall).dir,
       ticksLeft: TRANSITION_TICKS,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Phase 8 — wiring (03 §1.6)
+  // -------------------------------------------------------------------------
+
+  /** Every wire fires at most once, ever, and its firing is remembered per floor (01 §9). */
+  private evaluateWiring(): void {
+    const floorId = this.floor.id;
+
+    for (const [index, wire] of this.floor.wiring.entries()) {
+      if (this.persistence.has(wireFlag(floorId, index))) continue;
+      if (!this.triggerFired(wire.trigger)) continue;
+
+      this.persistence.set(wireFlag(floorId, index));
+      for (const effect of wire.effects) this.applyEffect(effect);
+    }
+  }
+
+  private triggerFired(trigger: WireSpec['trigger']): boolean {
+    switch (trigger.kind) {
+      case 'torch_group':
+        return this.litGroups.includes(trigger.group);
+      case 'room_clear':
+        return this.clearedRooms.includes(trigger.room);
+      case 'chest_open':
+        return (
+          this.roomId === trigger.room &&
+          this.openedChests.some(([col, row]) => col === trigger.at[0] && row === trigger.at[1])
+        );
+    }
+  }
+
+  private applyEffect(effect: WireSpec['effects'][number]): void {
+    switch (effect.kind) {
+      case 'open_door': {
+        const door = this.floor.doors.find((d) => d.id === effect.door);
+        if (door) this.openDoor(door);
+        return;
+      }
+      case 'spawn':
+        this.spawnWiredPickup(effect.room, effect.at, effect.pickup);
+        return;
+      case 'victory':
+        // 04-ui §3.3's hold and fade are the renderer's (M6); the sim stops here.
+        this.victory = true;
+        return;
+    }
+  }
+
+  /**
+   * A wired pickup appears when its room is the one being played, and is rebuilt on entry
+   * for as long as it has not been collected — so a key spawned behind the player is still
+   * there when they come back for it.
+   */
+  private spawnWiredPickup(roomId: string, at: Cell, kind: PickupName): void {
+    if (roomId !== this.roomId) return;
+    if (this.persistence.has(pickupFlag(this.floor.id, roomId, at[0], at[1]))) return;
+    if (this.pickups.some((p) => p.at[0] === at[0] && p.at[1] === at[1])) return;
+    this.pickups.push({ at, kind, fromMap: true });
+  }
+
+  /** Pickups that fired wires have already left in this room (03 §1.6). */
+  private restoreWiredPickups(def: LoadedRoom): void {
+    const floorId = this.floor.id;
+
+    for (const [index, wire] of this.floor.wiring.entries()) {
+      if (!this.persistence.has(wireFlag(floorId, index))) continue;
+      for (const effect of wire.effects) {
+        if (effect.kind !== 'spawn' || effect.room !== def.id) continue;
+        if (this.persistence.has(pickupFlag(floorId, def.id, effect.at[0], effect.at[1]))) continue;
+        this.pickups.push({ at: effect.at, kind: effect.pickup, fromMap: true });
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Phase 9 — seals and waves (01 §8.3, 02 §2.3)
+  // -------------------------------------------------------------------------
+
+  /** Whether anything in this room still counts as a threat holding the seal shut. */
+  private roomIsThreatened(): boolean {
+    return this.entities.length > 0 || this.telegraphs.length > 0 || this.pendingWave >= 0;
+  }
+
+  /**
+   * A combat_seal room shuts its doors on entry with anything left to fight, and opens them
+   * again the moment the room is empty — permanently cleared (01 §8.3).
+   */
+  private updateSeal(): void {
+    const def = this.roomDef;
+    if (!def.combatSeal) return;
+    if (this.persistence.has(clearedFlag(this.floor.id, def.id))) return;
+
+    if (this.seal === 0) {
+      if (this.roomIsThreatened()) {
+        this.seal = 1;
+        this.applyDoorTiles(true);
+      }
+      return;
+    }
+
+    if (this.roomIsThreatened()) return;
+
+    this.seal = 0;
+    this.persistence.set(clearedFlag(this.floor.id, def.id));
+    this.clearedRooms.push(def.id);
+    // Doors go back to whatever they were: open stays open, locked stays locked.
+    this.applyDoorTiles(false);
+  }
+
+  /** Point every door cell in this room at the door's state, or hold them all shut. */
+  private applyDoorTiles(sealed: boolean): void {
+    const floorId = this.floor.id;
+    for (const [key, owner] of this.roomDef.doorCells) {
+      const [col, row] = key.split(',').map(Number) as [number, number];
+      const open =
+        !sealed && (owner.type === 'gap' || this.persistence.has(doorFlag(floorId, owner.doorId)));
+      setTile(this.room, col, row, open ? TileClass.DOOR_OPEN : TileClass.DOOR_CLOSED);
+    }
+  }
+
+  /**
+   * Wave 1 lands on entry once the seal is shut, and each later wave 30 ticks after the last
+   * of the previous one dies. Every spawn telegraphs for 30 ticks first (02 §2.3).
+   */
+  private updateWaves(): void {
+    for (const telegraph of this.telegraphs) telegraph.ticksLeft--;
+
+    const arriving = this.telegraphs.filter((t) => t.ticksLeft <= 0);
+    if (arriving.length > 0) {
+      this.telegraphs = this.telegraphs.filter((t) => t.ticksLeft > 0);
+      for (const spawn of arriving) {
+        const entity = createEntity(
+          this.nextEntityId++,
+          spawn.kind,
+          spawn.at[0] * TILE_SUBPX,
+          spawn.at[1] * TILE_SUBPX,
+          spawn.drop,
+        );
+        entity.state = EnemyState.SPAWNING;
+        entity.stateTimer = SPAWN_BLINK_TICKS;
+        this.entities.push(entity);
+      }
+    }
+
+    if (this.waveGap > 0) {
+      // Counted down from the tick the room emptied, so the next wave telegraphs exactly
+      // 30 ticks after the last enemy of the previous one died (02 §2.3).
+      this.waveGap--;
+      if (this.waveGap === 0) {
+        this.waveGap = -1;
+        this.beginWave();
+      }
+      return;
+    }
+
+    // Nothing left standing and another wave to come: count down to it.
+    if (this.pendingWave >= 0 && this.entities.length === 0 && this.telegraphs.length === 0) {
+      this.waveGap = WAVE_GAP_TICKS;
+    }
+  }
+
+  /** Put the next wave's telegraphs on their tiles (02 §2.3). */
+  private beginWave(): void {
+    const waves = this.roomDef.waves;
+    if (this.pendingWave < 0 || this.pendingWave >= waves.length) {
+      this.pendingWave = -1;
+      return;
+    }
+
+    for (const spawn of waves[this.pendingWave]!) {
+      this.telegraphs.push({
+        at: spawn.at,
+        kind: spawn.type,
+        drop: spawn.drop,
+        ticksLeft: SPAWN_TELEGRAPH_TICKS,
+      });
+    }
+
+    this.pendingWave = this.pendingWave + 1 < waves.length ? this.pendingWave + 1 : -1;
   }
 
   // -------------------------------------------------------------------------
