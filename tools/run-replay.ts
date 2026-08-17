@@ -38,6 +38,7 @@ export function currentState(sim: Sim): Required<ReplayExpect> {
     silverKeys: sim.silverKeys,
     goldKey: sim.goldKey,
     deaths: sim.deaths,
+    enemies: sim.entities.length,
     floorComplete: sim.floorComplete,
     victory: sim.victory,
   };
@@ -80,7 +81,14 @@ export function runReplay(
   const floorIndex = FLOOR_IDS.indexOf(replay.floor);
   if (floorIndex < 0) throw new Error(`unknown floor "${replay.floor}"`);
 
-  const sim = new Sim(floors, { floorIndex, hp: replay.start.hp });
+  const sim = new Sim(floors, {
+    floorIndex,
+    hp: replay.start.hp,
+    ...(replay.room === undefined ? {} : { roomId: replay.room }),
+    ...(replay.at === undefined
+      ? {}
+      : { start: { x: replay.at[0] * TILE_SUBPX, y: replay.at[1] * TILE_SUBPX } }),
+  });
   sim.inventory.treasure = replay.start.treasure;
   sim.deaths = replay.start.deaths;
 

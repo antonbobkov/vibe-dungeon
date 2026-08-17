@@ -1,0 +1,50 @@
+{
+  "floor": "f2",
+  "room": "R4",
+  "at": [
+    5,
+    1
+  ],
+  "start": {
+    "hp": 6,
+    "treasure": 0,
+    "deaths": 0
+  },
+  "inputs": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "asserts": [
+    {
+      "tick": 0,
+      "expect": {
+        "room": "R4",
+        "enemies": 2,
+        "hp": 6
+      }
+    },
+    {
+      "tick": 87,
+      "expect": {
+        "hp": 6
+      }
+    },
+    {
+      "tick": 88,
+      "expect": {
+        "hp": 5
+      }
+    },
+    {
+      "tick": 150,
+      "expect": {
+        "hp": 5
+      }
+    },
+    {
+      "tick": 151,
+      "expect": {
+        "hp": 4,
+        "enemies": 2,
+        "deaths": 0
+      }
+    }
+  ]
+}

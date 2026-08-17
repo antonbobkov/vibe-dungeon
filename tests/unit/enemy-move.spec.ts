@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { diagAxis } from '../../src/sim/collision.js';
+import { playerCentre } from '../../src/sim/combat.js';
 import { CHASE_DIAGONAL_DEADZONE, SEPARATION_PUSH, TILE_SUBPX } from '../../src/sim/constants.js';
 import {
   EnemyState,
   chaseVelocity,
   createEntity,
+  damageEnemy,
   entityCentre,
   hasLineOfSight,
   separateEnemies,
 } from '../../src/sim/enemy.js';
-import { losSegments } from '../../src/sim/geometry.js';
+import { Dir8, losSegments } from '../../src/sim/geometry.js';
 import { parseRoom } from '../../src/sim/room.js';
 import { Sim } from '../../src/sim/sim.js';
 
@@ -188,5 +190,51 @@ describe('room bounds', () => {
     chase(walking);
     for (let i = 0; i < 200; i++) walking.tick(0);
     expect(entityCentre(walking.entities[0]!).x).toBeGreaterThan(5 * TILE_SUBPX);
+  });
+});
+
+// The remaining two M3 scenarios, which need exact values rather than macro asserts.
+describe('scenarios', () => {
+  it('leaves a skel_axe standing after a hit, moved only 60 subpx (02 §2.2)', () => {
+    const room = parseRoom(['#########', '#.......#', '#.......#', '#.......#', '#########']);
+    const sim = new Sim(room, { start: { x: 1 * TILE_SUBPX, y: 2 * TILE_SUBPX } });
+    const axe = createEntity(0, 'skel_axe', 6 * TILE_SUBPX, 2 * TILE_SUBPX, null);
+    sim.entities.push(axe);
+
+    damageEnemy(axe, 1, Dir8.R);
+    expect(axe.knockMag).toBe(24); // not the 48 an ordinary enemy takes
+    expect(axe.hp).toBe(3); // 4 HP, so it survives comfortably
+
+    // 24 + 18 + 12 + 6 = 60 subpx, under four pixels, over four ticks.
+    const startX = axe.x;
+    for (let i = 0; i < 4; i++) sim.tick(0);
+    expect(axe.x - startX).toBe(60);
+    expect(axe.knockMag).toBe(0);
+    expect(axe.state).not.toBe(EnemyState.DYING);
+  });
+
+  it('walks a zombie straight across a spike tile (02 §2.1 trap immunity)', () => {
+    // No shipped room pairs a zombie with spikes, so the scene is built here. Spikes are
+    // floor as far as movement goes (02 §3.1); their damage — which never touches an enemy —
+    // lands in M4, and this is the half M3 can prove.
+    const room = parseRoom(['#########', '#.......#', '#..s.s..#', '#.......#', '#########']);
+    const sim = new Sim(room, { start: { x: 1 * TILE_SUBPX, y: 2 * TILE_SUBPX } });
+
+    // Line the two hitbox centres up exactly, so the walk is a pure cardinal at full speed
+    // rather than the diagonal 4 subpx/tick a 16-subpixel offset would produce.
+    const zombie = createEntity(0, 'zombie', 7 * TILE_SUBPX, 2 * TILE_SUBPX, null);
+    zombie.y += playerCentre(sim.player).y - entityCentre(zombie).y;
+    sim.entities.push(zombie);
+
+    const crossed = new Set<number>();
+    for (let i = 0; i < 300; i++) {
+      sim.tick(0);
+      crossed.add(Math.floor(entityCentre(zombie).x / TILE_SUBPX));
+    }
+
+    expect(crossed.has(5)).toBe(true); // it walked over both spike tiles
+    expect(crossed.has(3)).toBe(true);
+    expect(zombie.hp).toBe(3); // and arrived with every hit point
+    expect(sim.player.hp).toBeLessThan(6); // having reached the player
   });
 });

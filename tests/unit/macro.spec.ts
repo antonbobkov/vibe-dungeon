@@ -117,3 +117,55 @@ describe('the committed f1-d1 replay', () => {
     expect(run.failures).toEqual(['tick 98: expected room=R6, got R2']);
   });
 });
+
+describe('scenario headers (this project’s extension to 05 §3.2)', () => {
+  it('reads a room and a starting tile', () => {
+    const replay = compileMacro('floor f1\nroom R2\nat 6,6\nW 1');
+    expect(replay.room).toBe('R2');
+    expect(replay.at).toEqual([6, 6]);
+  });
+
+  it('leaves both out when the macro does not set a scene', () => {
+    const replay = compileMacro('floor f1\nW 1');
+    expect(replay.room).toBeUndefined();
+    expect(replay.at).toBeUndefined();
+  });
+
+  it('rejects a malformed scene', () => {
+    expect(() => compileMacro('floor f1\nroom')).toThrow(/line 2: room needs a room id/);
+    expect(() => compileMacro('floor f1\nat 6')).toThrow(/line 2: at needs a col,row cell/);
+    expect(() => compileMacro('floor f1\nat x,y')).toThrow(/line 2: at needs a col,row cell/);
+  });
+
+  it('counts the enemies still standing', () => {
+    const replay = compileMacro('floor f1\nassert enemies=0');
+    expect(replay.asserts[0]!.expect).toEqual({ enemies: 0 });
+  });
+});
+
+describe('the committed combat scenarios', () => {
+  const scenarios = ['f1-skel-sword-kill', 'f2-zombie-chase'] as const;
+
+  it.each(scenarios)('%s is exactly what a fresh compile produces', (name) => {
+    expect(compileFile(`tests/replay/${name}.macro`).drifted, 'run npm run macro:compile').toBe(
+      false,
+    );
+  });
+
+  it('kills the skeleton in two swings, unharmed', () => {
+    const replay = compileMacro(readFileSync('tests/replay/f1-skel-sword-kill.macro', 'utf8'));
+    const run = runReplay(replay, floors(), { log: () => {} });
+    expect(run.failures).toEqual([]);
+    expect(run.sim.entities).toEqual([]);
+    expect(run.sim.player.hp).toBe(6);
+  });
+
+  it('lets the zombie land two hits exactly 63 ticks apart', () => {
+    // 60 ticks of i-frames (01 §5.1) plus the 3 ticks of hit-stop the first hit froze.
+    const replay = compileMacro(readFileSync('tests/replay/f2-zombie-chase.macro', 'utf8'));
+    const run = runReplay(replay, floors(), { log: () => {} });
+    expect(run.failures).toEqual([]);
+    expect(run.sim.player.hp).toBe(4);
+    expect(run.sim.playTick).toBe(151);
+  });
+});

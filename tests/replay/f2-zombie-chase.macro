@@ -1,0 +1,26 @@
+# Floor 2, the Torch Shrine: a zombie walks the player down.
+#
+# The zombie has no aggro condition and no line-of-sight check (02 §2.2) — it simply comes,
+# at 7 subpx/tick, from three tiles away. The player never moves.
+#
+# The two hits are 63 ticks apart: the 60-tick i-frame window of 01 §5.1 plus the 3 ticks of
+# hit-stop the first hit froze (01 §1 phase 2). Nothing here damages the zombie, which is the
+# other half of 02 §2.1's trap immunity — the spikes that would prove it arrive with M4.
+
+floor f2
+room R4
+at 5,1
+
+assert room=R4 enemies=2 hp=6
+
+W 87
+assert hp=6              # still closing
+
+W 1
+assert hp=5              # tick 88: contact
+
+W 62
+assert hp=5              # tick 150: refused all the way through the i-frame window
+
+W 1
+assert hp=4 enemies=2 deaths=0

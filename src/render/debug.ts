@@ -6,7 +6,9 @@
  * the real Pack A renderer; the layout maths here (room centring, 03 §1.1) is the same.
  */
 
+import { isSwingActive, swordRect } from '../sim/combat.js';
 import { PLAYER_BOX, SUBPX, TILE, TILE_SUBPX, VIEW_W, HUD_H, PLAY_H } from '../sim/constants.js';
+import { EnemyState, boxOf, type SimEntity } from '../sim/enemy.js';
 import { TileClass, tileAt } from '../sim/room.js';
 import type { Sim } from '../sim/sim.js';
 
@@ -24,6 +26,9 @@ const COLORS: Record<TileClass, string> = {
 
 const PICKUP_COLOR = '#ffd569';
 const ENEMY_COLOR = '#bc4c51';
+const ENEMY_STUNNED_COLOR = '#ffffff';
+const ENEMY_DYING_COLOR = '#543740';
+const SWORD_COLOR = '#adc1cf';
 const PLAYER_COLOR = '#adc1cf';
 const TRAP_COLOR = '#78514f';
 const TEXT_COLOR = '#adc1cf';
@@ -60,9 +65,15 @@ export function drawDebug(ctx: CanvasRenderingContext2D, sim: Sim): void {
     ctx.fillRect(ox + pickup.at[0] * TILE + 5, oy + pickup.at[1] * TILE + 5, 6, 6);
   }
 
-  ctx.fillStyle = ENEMY_COLOR;
   for (const entity of sim.entities) {
-    ctx.fillRect(ox + entity.x / SUBPX, oy + entity.y / SUBPX, TILE, TILE);
+    drawEnemy(ctx, entity, ox, oy);
+  }
+
+  // The sword's reach, only while it can actually connect (01 §4.2).
+  if (isSwingActive(sim.player)) {
+    const blade = swordRect(sim.player);
+    ctx.fillStyle = SWORD_COLOR;
+    ctx.fillRect(ox + blade.l / SUBPX, oy + blade.t / SUBPX, TILE, TILE);
   }
 
   // The player's feet box, which is what actually collides (01 §3.3).
@@ -77,6 +88,27 @@ export function drawDebug(ctx: CanvasRenderingContext2D, sim: Sim): void {
   drawStatus(ctx, sim);
 }
 
+/** Enemies show their hitbox, their state initial, and a white flash while stunned. */
+function drawEnemy(ctx: CanvasRenderingContext2D, entity: SimEntity, ox: number, oy: number): void {
+  const box = boxOf(entity.kind);
+  const x = ox + entity.x / SUBPX + box.offX;
+  const y = oy + entity.y / SUBPX + box.offY;
+
+  ctx.fillStyle =
+    entity.state === EnemyState.DYING
+      ? ENEMY_DYING_COLOR
+      : entity.hitstun > 0
+        ? ENEMY_STUNNED_COLOR
+        : ENEMY_COLOR;
+  ctx.fillRect(x, y, box.w, box.h);
+
+  ctx.fillStyle = '#25131a';
+  ctx.font = '6px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText(EnemyState[entity.state]?.[0] ?? '?', x + 1, y + 1);
+  ctx.textBaseline = 'middle';
+}
+
 /** A one-line status strip where the HUD will go (04-ui §1, M6). */
 function drawStatus(ctx: CanvasRenderingContext2D, sim: Sim): void {
   ctx.fillStyle = '#25131a';
@@ -87,8 +119,9 @@ function drawStatus(ctx: CanvasRenderingContext2D, sim: Sim): void {
 
   const tile = `${Math.floor(sim.player.x / TILE_SUBPX)},${Math.floor(sim.player.y / TILE_SUBPX)}`;
   const keys = `${sim.silverKeys}${sim.goldKey ? '+G' : ''}`;
+  const foes = sim.entities.length > 0 ? `  foes ${sim.entities.length}` : '';
   ctx.fillText(
-    `${sim.floor.id.toUpperCase()} ${sim.roomId} (${tile})  hp ${sim.player.hp}  $${sim.treasure}  keys ${keys}  t${sim.playTick}`,
+    `${sim.floor.id.toUpperCase()} ${sim.roomId} (${tile})  hp ${sim.player.hp}  $${sim.treasure}  keys ${keys}${foes}  t${sim.playTick}`,
     3,
     HUD_H / 2,
   );

@@ -4,6 +4,8 @@
  * Hand-writing per-tick input bytes is impractical, so replays are compiled from macro text:
  *
  *     floor f1                  # which floor to run (header)
+ *     room R2                   # which room to start in (header, optional)
+ *     at 6,6                    # which tile to start on (header, optional)
  *     start hp=6 treasure=0     # state on floor entry (header, optional)
  *     R 40                      # hold RIGHT for 40 ticks
  *     UR 12                     # hold UP+RIGHT for 12
@@ -14,8 +16,10 @@
  *     assert room=R2 treasure=6 # check state at the current tick
  *     label fork1               # no-op marker for readability
  *
- * `floor` and `start` are this project's headers: 05 §3.1 requires both fields in the
- * replay file, and §3.2's grammar has no way to say them. Everything else is verbatim.
+ * `floor` and `start` are this project's headers: 05 §3.1 requires both fields in the replay
+ * file, and §3.2's grammar has no way to say them. `room` and `at` are its own too, so that a
+ * scenario macro can set a scene — start beside the skeleton it is about — instead of walking
+ * there first. Everything else is verbatim.
  *
  * The compiler is pure text → bytes: it never runs the sim, so recompiling can only drift
  * when the macro text or this compiler changes.
@@ -24,7 +28,11 @@
 import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from '../src/sim/input.js';
 import type { FloorId } from '../src/sim/level.js';
 
-/** The assert vocabulary of 05 §3.1, plus `floor` because 03-levels' solution tables use it. */
+/**
+ * The assert vocabulary of 05 §3.1, plus two this project adds: `floor`, because 03-levels'
+ * solution tables assert it, and `enemies`, the number still alive in the current room —
+ * which is how a combat scenario says "and then it was dead".
+ */
 export interface ReplayExpect {
   room?: string;
   floor?: number;
@@ -33,12 +41,17 @@ export interface ReplayExpect {
   silverKeys?: number;
   goldKey?: boolean;
   deaths?: number;
+  enemies?: number;
   floorComplete?: boolean;
   victory?: boolean;
 }
 
 export interface Replay {
   floor: FloorId;
+  /** Room to start in; defaults to the floor's first. Scenario macros use it to set a scene. */
+  room?: string;
+  /** Tile to start on, when the room has no `@` or the scene wants a particular spot. */
+  at?: [number, number];
   start: { hp: number; treasure: number; deaths: number };
   /** Base64 of one input byte per tick (05 §3.1). */
   inputs: string;
@@ -57,7 +70,7 @@ const LETTERS: Record<string, number> = {
   W: 0, // wait — no bits, but a legal token
 };
 
-const NUMERIC_KEYS = new Set(['floor', 'hp', 'treasure', 'silverKeys', 'deaths']);
+const NUMERIC_KEYS = new Set(['floor', 'hp', 'treasure', 'silverKeys', 'deaths', 'enemies']);
 const BOOLEAN_KEYS = new Set(['goldKey', 'floorComplete', 'victory']);
 const STRING_KEYS = new Set(['room']);
 
@@ -96,6 +109,8 @@ export function compileMacro(text: string): Replay {
   const bytes: number[] = [];
   const asserts: Replay['asserts'] = [];
   let floor: FloorId | null = null;
+  let room: string | undefined;
+  let at: [number, number] | undefined;
   const start = { hp: 6, treasure: 0, deaths: 0 };
 
   const lines = text.split(/\r?\n/);
@@ -129,6 +144,20 @@ export function compileMacro(text: string): Replay {
       continue;
     }
 
+    if (head === 'room') {
+      const id = tokens[1];
+      if (!id) throw new MacroError(`line ${line}: room needs a room id`);
+      room = id;
+      continue;
+    }
+
+    if (head === 'at') {
+      const cell = /^(\d+),(\d+)$/.exec(tokens[1] ?? '');
+      if (!cell) throw new MacroError(`line ${line}: at needs a col,row cell`);
+      at = [Number(cell[1]), Number(cell[2])];
+      continue;
+    }
+
     if (head === 'assert') {
       asserts.push({ tick: bytes.length, expect: parseExpect(tokens.slice(1), line) });
       continue;
@@ -157,6 +186,8 @@ export function compileMacro(text: string): Replay {
 
   return {
     floor,
+    ...(room === undefined ? {} : { room }),
+    ...(at === undefined ? {} : { at }),
     start,
     inputs: Buffer.from(Uint8Array.from(bytes)).toString('base64'),
     asserts,
