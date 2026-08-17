@@ -1,0 +1,42 @@
+{
+  "floor": "f1",
+  "start": {
+    "hp": 6,
+    "treasure": 0,
+    "deaths": 0
+  },
+  "inputs": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "asserts": [
+    {
+      "tick": 0,
+      "expect": {
+        "room": "R1",
+        "floor": 1,
+        "treasure": 0,
+        "hp": 6
+      }
+    },
+    {
+      "tick": 33,
+      "expect": {
+        "treasure": 1
+      }
+    },
+    {
+      "tick": 45,
+      "expect": {
+        "treasure": 2
+      }
+    },
+    {
+      "tick": 98,
+      "expect": {
+        "room": "R2",
+        "floor": 1,
+        "treasure": 2,
+        "hp": 6,
+        "deaths": 0
+      }
+    }
+  ]
+}

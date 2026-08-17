@@ -1,0 +1,20 @@
+# Floor 1: north out of the Entry Hall, through door d1, into the Broken Hall.
+#
+# The player starts on `@`(5,6) and walks straight up column 5, taking the two coins in
+# that column on the way. d1 opens on proximity at tick 62 (01 §8.1) and the hitbox centre
+# crosses into the door cell on tick 74, starting the 24-tick camera slide of 01 §8.2.
+
+floor f1
+start hp=6 treasure=0 deaths=0
+
+assert room=R1 floor=1 treasure=0 hp=6
+
+U 33
+assert treasure=1        # the coin at (5,3)
+
+U 12
+assert treasure=2        # the coin at (5,2)
+
+U 29                     # tick 74: the centre enters the door cell
+W 24                     # the camera slide
+assert room=R2 floor=1 treasure=2 hp=6 deaths=0

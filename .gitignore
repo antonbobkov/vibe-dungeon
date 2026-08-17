@@ -58,3 +58,6 @@ coverage/
 playwright-report/
 test-results/
 .vite/
+
+# Local preview config: it points at this machine's node binary.
+.claude/launch.json

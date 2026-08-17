@@ -1,12 +1,16 @@
 /**
  * Browser bootstrap.
  *
- * At M0 this only sets up the display surface: the 320×208 logical canvas and the integer
- * scaling rule from spec/00-overview.md §Global constants. The fixed-timestep loop, input
- * and renderer arrive with M1/M6.
+ * At M2 this runs the sim at a fixed timestep and draws the debug view, so the 26 rooms can
+ * be walked and checked by eye. M6 replaces the renderer with real Pack A art and adds the
+ * HUD, screens and replay injection hook; the loop and the input mapping stay.
  */
 
-import { CLEAR_COLOR, VIEW_H, VIEW_W } from './sim/constants.js';
+import { drawDebug } from './render/debug.js';
+import { CLEAR_COLOR, TICK_RATE, VIEW_H, VIEW_W } from './sim/constants.js';
+import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from './sim/input.js';
+import { loadFloor, type FloorFile } from './sim/level.js';
+import { Sim } from './sim/sim.js';
 
 const element = document.getElementById('game');
 if (!(element instanceof HTMLCanvasElement)) {
@@ -29,11 +33,87 @@ function fitToWindow(): void {
   canvas.style.height = `${VIEW_H * scale}px`;
 }
 
-function paint(): void {
-  ctx.fillStyle = CLEAR_COLOR;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-}
-
 addEventListener('resize', fitToWindow);
 fitToWindow();
-paint();
+
+ctx.fillStyle = CLEAR_COLOR;
+ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+// --- input (01 §2) ---------------------------------------------------------
+
+const BINDINGS: Record<string, number> = {
+  ArrowUp: UP,
+  KeyW: UP,
+  ArrowDown: DOWN,
+  KeyS: DOWN,
+  ArrowLeft: LEFT,
+  KeyA: LEFT,
+  ArrowRight: RIGHT,
+  KeyD: RIGHT,
+  KeyX: ATTACK,
+  KeyJ: ATTACK,
+  KeyZ: INTERACT,
+  KeyK: INTERACT,
+  KeyE: INTERACT,
+};
+
+let held = 0;
+
+addEventListener('keydown', (event) => {
+  const bit = BINDINGS[event.code];
+  if (bit === undefined) return;
+  held |= bit;
+  event.preventDefault();
+});
+
+addEventListener('keyup', (event) => {
+  const bit = BINDINGS[event.code];
+  if (bit === undefined) return;
+  held &= ~bit;
+  event.preventDefault();
+});
+
+// --- the fixed-timestep loop (00-overview §Determinism rule 1) --------------
+
+const FRAME_MS = 1000 / TICK_RATE;
+/** Never simulate more than this many ticks in one frame, so a stall cannot spiral. */
+const MAX_CATCH_UP = 5;
+
+async function boot(): Promise<void> {
+  const ids = ['f1', 'f2', 'f3', 'f4'] as const;
+  const floors = await Promise.all(
+    ids.map(async (id) => {
+      const response = await fetch(`levels/${id}.json`);
+      return loadFloor((await response.json()) as FloorFile);
+    }),
+  );
+
+  const sim = new Sim(floors);
+  let previous = performance.now();
+  let accumulator = 0;
+
+  const frame = (now: number): void => {
+    accumulator += now - previous;
+    previous = now;
+
+    let ticks = 0;
+    while (accumulator >= FRAME_MS && ticks < MAX_CATCH_UP) {
+      sim.tick(held);
+      accumulator -= FRAME_MS;
+      ticks++;
+    }
+    if (accumulator > FRAME_MS * MAX_CATCH_UP) accumulator = 0;
+
+    ctx.fillStyle = CLEAR_COLOR;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    drawDebug(ctx, sim);
+
+    requestAnimationFrame(frame);
+  };
+
+  requestAnimationFrame(frame);
+}
+
+boot().catch((error: unknown) => {
+  console.error('main: boot failed', error);
+});

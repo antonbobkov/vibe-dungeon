@@ -11,9 +11,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:levels": "tsx tools/level-lint.ts levels",
+    "macro:compile": "tsx tools/macro-compile.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:replay": "tsx tools/replay-test.ts",
+    "sim": "tsx tools/sim-cli.ts",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
