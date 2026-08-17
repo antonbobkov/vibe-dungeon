@@ -11,7 +11,7 @@ import {
   wireFlag,
 } from '../../src/sim/persistence.js';
 import { TileClass, tileAt } from '../../src/sim/room.js';
-import { ENEMY_TYPE_ID } from '../../src/sim/sim.js';
+import { ENEMY_TYPE_ID, EnemyState } from '../../src/sim/enemy.js';
 import { game, hold, runUntil } from './helpers.js';
 
 /**
@@ -31,17 +31,20 @@ describe('reset on room entry (01 §9)', () => {
   it('respawns enemies at their map positions with full HP', () => {
     // Start on R2's entry tile, so walking DOWN goes back through d1.
     const s = game({ roomId: 'R2', start: { x: 1152, y: 1792 } });
-    expect(s.entities).toEqual([
-      {
-        type: ENEMY_TYPE_ID.skel_sword,
-        x: 6 * 256,
-        y: 4 * 256,
-        hp: ENEMY_STATS.skel_sword.hp,
-        state: 0,
-        stateTimer: 0,
-        drop: null,
-      },
-    ]);
+    expect(s.entities).toHaveLength(1);
+    expect(s.entities[0]).toMatchObject({
+      id: 0,
+      kind: 'skel_sword',
+      x: 6 * 256,
+      y: 4 * 256,
+      hp: ENEMY_STATS.skel_sword.hp,
+      state: EnemyState.IDLE,
+      stateTimer: 0,
+      hitstun: 0,
+      aggroed: false,
+      drop: null,
+    });
+    expect(ENEMY_TYPE_ID[s.entities[0]!.kind]).toBe(0);
 
     // Wound and move it, leave, come back: it is the map's skeleton again.
     s.entities[0]!.hp = 1;
@@ -77,7 +80,7 @@ describe('reset on room entry (01 §9)', () => {
     const s = game({ floorIndex: 1, roomId: 'R3' });
     expect(s.traps.some((t) => t.def.kind === 'arrow')).toBe(true);
     // Bolts arrive with M4; the invariant that a fresh room has none holds from here on.
-    expect(s.entities.filter((e) => e.type < 0)).toEqual([]);
+    expect(s.entities.every((e) => e.state === EnemyState.IDLE)).toBe(true);
   });
 
   it('rebuilds unconsumed pushable crates from the map', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { diagAxis } from '../../src/sim/collision.js';
 import { WALK_SPEED } from '../../src/sim/constants.js';
-import { DOWN, LEFT, RIGHT, UP } from '../../src/sim/input.js';
+import { ATTACK, DOWN, LEFT, RIGHT, UP } from '../../src/sim/input.js';
 import { Facing, PlayerState } from '../../src/sim/player.js';
 import { parseRoom } from '../../src/sim/room.js';
 import { Sim } from '../../src/sim/sim.js';
@@ -132,13 +132,16 @@ describe('the tick loop', () => {
     expect(s.player.x).toBe(532); // resumed
   });
 
-  it('ignores walk input outside NORMAL (01 §4.1 — SWING locks movement)', () => {
+  it('locks movement for the first ten ticks of a swing (01 §4.1)', () => {
+    // The full window is pinned in combat.spec.ts; this is the tick loop honouring it.
     const s = sim();
-    s.player.state = PlayerState.SWING;
-    hold(s, RIGHT, 10);
+    s.tick(ATTACK);
+    expect(s.player.state).toBe(PlayerState.SWING);
+
+    hold(s, RIGHT, 9); // ticks 1–9 of the swing: still locked
     expect(s.player.x).toBe(512);
-    s.player.state = PlayerState.NORMAL;
-    hold(s, RIGHT, 1);
+
+    hold(s, RIGHT, 1); // tick 10: free again
     expect(s.player.x).toBe(532);
   });
 

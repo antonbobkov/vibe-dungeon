@@ -106,3 +106,72 @@ export const ENEMY_STATS = {
   zombie: { hp: 3, speed: 7, contactDamage: 1 },
   wisp: { hp: 1, speed: 16, contactDamage: 1 },
 } as const;
+
+// ---------------------------------------------------------------------------
+// Combat — 01-mechanics §4.2, §5; 02-entities §2
+// ---------------------------------------------------------------------------
+
+/** The swing's active window, in ticks elapsed since it began (01 §4.2). */
+export const SWING_ACTIVE_FIRST = 3;
+export const SWING_ACTIVE_LAST = 9;
+/** Movement is locked for the first ten ticks of a swing, free for the last four (01 §4.1). */
+export const SWING_LOCKED_UNTIL = 9;
+
+/** Sword hitbox: 16 × 16 px, offset from the sprite cell by facing (01 §4.2). */
+export const SWORD_BOX = { offX: 0, offY: 0, w: TILE, h: TILE } as const;
+export const SWORD_REACH_PX = 14;
+export const SWORD_DAMAGE = 1;
+
+/** Knockback the sword deals, and the hitstun that comes with it (01 §4.2). */
+export const ENEMY_KNOCKBACK = 48;
+export const ENEMY_KNOCKBACK_DECAY = 6;
+export const ENEMY_HITSTUN = 8;
+
+/** Resistant enemies — skel_axe and zombie — barely flinch (02 §2.2). */
+export const RESISTANT_KNOCKBACK = 24;
+export const RESISTANT_HITSTUN = 4;
+
+/** Player knockback: 48 decaying by 4 is 12 ticks and 312 subpx ≈ 19 px (01 §5.2). */
+export const PLAYER_KNOCKBACK = 48;
+export const PLAYER_KNOCKBACK_DECAY = 4;
+
+/** Input is ignored for the first six ticks of HURT's twelve (01 §4.1). */
+export const HURT_INPUT_LOCK = 6;
+
+/** An enemy's death: 2 ticks of white flash, then 10 of fade (02 §2.1). */
+export const ENEMY_DEATH_FLASH = 2;
+export const ENEMY_DEATH_FADE = 10;
+export const ENEMY_DEATH_TICKS = ENEMY_DEATH_FLASH + ENEMY_DEATH_FADE;
+
+/** Enemy hitboxes (02 §2.1). Grounded means both skeletons and the zombie. */
+export const ENEMY_BOX_GROUND = { offX: 2, offY: 6, w: 12, h: 10 } as const;
+export const ENEMY_BOX_WISP = { offX: 3, offY: 3, w: 10, h: 10 } as const;
+
+/** Chase steering only goes diagonal when both axes exceed this deadzone (02 §2.1). */
+export const CHASE_DIAGONAL_DEADZONE = 8;
+
+/** Enemy separation pushes overlapping pairs apart by this much per tick (02 §2.1). */
+export const SEPARATION_PUSH = 4;
+
+/** LOS samples one point per this many pixels of distance (02 §2.1). */
+export const LOS_SAMPLE_PX = 8;
+
+/** skel_sword's attack cycle (02 §2.2). */
+export const SKEL_SWORD_AGGRO_PX = 112;
+export const SKEL_SWORD_WINDUP_RANGE_PX = 24;
+export const SKEL_SWORD_WINDUP_TICKS = 24;
+export const SKEL_SWORD_LUNGE_TICKS = 12;
+export const SKEL_SWORD_LUNGE_SPEED = 40;
+export const SKEL_SWORD_RECOVER_TICKS = 18;
+
+/** skel_axe aggroes further out and never needs line of sight (02 §2.2). */
+export const SKEL_AXE_AGGRO_PX = 144;
+
+/** The wisp's perpendicular wobble (02 §2.4). */
+export const WISP_AGGRO_PX = 112;
+export const WISP_WOBBLE_AMPLITUDE = 12;
+export const WISP_WOBBLE_SHIFT = 6;
+/** Ticks per step through the SIN table. */
+export const WISP_WOBBLE_PERIOD = 4;
+/** The integer sine table of 02 §2.4, verbatim. */
+export const SIN = [0, 24, 45, 59, 64, 59, 45, 24, 0, -24, -45, -59, -64, -59, -45, -24] as const;

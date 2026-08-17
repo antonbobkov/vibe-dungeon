@@ -11,12 +11,16 @@
  * comes back and everything it lists as "persist" is a flag.
  */
 
-import { boxCentre } from './collision.js';
+import { boxCentre, moveAxisSeparated } from './collision.js';
+import { damagePlayer, isSwingActive, playerCentre, swordRect } from './combat.js';
 import {
   DEATH_BLACK_TICKS,
   DOOR_OPEN_RADIUS_PX,
   DYING_TICKS,
+  ENEMY_KNOCKBACK_DECAY,
   ENEMY_STATS,
+  HIT_STOP_TICKS,
+  SWORD_DAMAGE,
   FLOOR_FADE_TICKS,
   LADDER_HOLD_TICKS,
   MAX_HP,
@@ -26,6 +30,17 @@ import {
   TILE_SUBPX,
   TRANSITION_TICKS,
 } from './constants.js';
+import {
+  ENEMY_TYPE_ID,
+  EnemyState,
+  boxOf,
+  createEntity,
+  damageEnemy,
+  isActive,
+  moverOf,
+  type SimEntity,
+} from './enemy.js';
+import { boxRect, dirVelocity, rectCentre, rectsOverlap, snap8 } from './geometry.js';
 import { hashString, newHash, writeInt32 } from './hash.js';
 import { INPUT_MASK, UP, moveAxes, pressed, INTERACT } from './input.js';
 import {
@@ -58,35 +73,21 @@ import {
 } from './player.js';
 import { TileClass, isSolid, setTile, tileAt, type Room } from './room.js';
 
-/** Enemy type ids, fixed for the state hash (05 §4). Order follows 02 §2.2. */
-export const ENEMY_TYPE_ID = {
-  skel_sword: 0,
-  skel_axe: 1,
-  zombie: 2,
-  wisp: 3,
-} as const;
-
-/** An enemy in the current room. Inert until M3 gives it a state machine. */
-export interface SimEntity {
-  type: number;
-  x: number;
-  y: number;
-  hp: number;
-  state: number;
-  stateTimer: number;
-  drop: PickupName | null;
-}
-
 /** A trap placement in the current room; only its phase is hashed (05 §4). */
 export interface SimTrap {
   def: LoadedTrap;
   phase: number;
 }
 
-/** A pickup still lying in the current room. */
+/**
+ * A pickup still lying in the current room. Map pickups persist once collected (01 §9);
+ * enemy drops are transient, so collecting one must never flag the cell it happened to land
+ * on — a map coin there would vanish on re-entry.
+ */
 export interface SimPickup {
   at: Cell;
   kind: PickupName;
+  fromMap: boolean;
 }
 
 /** Where the player respawns after a death (01 §6). */
@@ -288,7 +289,8 @@ export class Sim {
     this.updatePlayerPhase();
     if (this.script) return;
 
-    // 4. Enemy updates, ascending spawn id — M3.
+    // 4. Enemy updates, ascending spawn id (02 §2).
+    this.updateEnemies();
     // 5. Projectile updates, ascending spawn order — M4.
     // 6. Trap updates: advance phase counters, compute deadly sets (02 §3; damage is M4).
     this.roomTimer++;
@@ -296,8 +298,10 @@ export class Sim {
       trap.phase = (this.roomTimer + trap.def.offset) % trap.def.period;
     }
 
-    // 7. Overlap resolution: pickups, damage (M3), then trigger zones (01 §1).
+    // 7. Overlap resolution: pickups, damage, then trigger zones (01 §1).
     this.collectPickups();
+    this.resolveSwordHits();
+    this.resolveContactDamage();
     this.openNearbyDoors();
     this.unlockDoors();
     this.checkLadder();
@@ -323,7 +327,7 @@ export class Sim {
       return;
     }
 
-    updatePlayer(p, this.room, this.input);
+    updatePlayer(p, this.room, this.input, this.prevInput);
   }
 
   private advanceScript(): void {
@@ -413,7 +417,7 @@ export class Sim {
     // Pickups: everything not already collected.
     this.pickups = def.pickups
       .filter((p) => !this.persistence.has(pickupFlag(floorId, def.id, p.at[0], p.at[1])))
-      .map((p) => ({ at: p.at, kind: p.kind }));
+      .map((p) => ({ at: p.at, kind: p.kind, fromMap: true }));
 
     // Enemies: respawned at their map positions, full HP (01 §9). A cleared combat_seal room
     // never respawns them.
@@ -421,15 +425,9 @@ export class Sim {
     this.entities =
       def.combatSeal && cleared
         ? []
-        : def.enemies.map((e) => ({
-            type: ENEMY_TYPE_ID[e.type],
-            x: e.at[0] * TILE_SUBPX,
-            y: e.at[1] * TILE_SUBPX,
-            hp: ENEMY_STATS[e.type].hp,
-            state: 0,
-            stateTimer: 0,
-            drop: e.drop,
-          }));
+        : def.enemies.map((e, index) =>
+            createEntity(index, e.type, e.at[0] * TILE_SUBPX, e.at[1] * TILE_SUBPX, e.drop),
+          );
 
     // Trap phase counters reset to their per-placement offsets (01 §9).
     this.traps = def.traps.map((def_) => ({ def: def_, phase: def_.offset % def_.period }));
@@ -483,6 +481,68 @@ export class Sim {
   }
 
   // -------------------------------------------------------------------------
+  // Phase 4 — enemies (02 §2)
+  // -------------------------------------------------------------------------
+
+  /** Enemies act in ascending spawn id (01 §1 phase 4). */
+  private updateEnemies(): void {
+    let died = false;
+
+    for (const entity of this.entities) {
+      if (entity.state === EnemyState.DYING) {
+        // 02 §2.1: 2 ticks of white flash, 10 of fade, then the drop.
+        entity.stateTimer--;
+        if (entity.stateTimer <= 0) died = true;
+        continue;
+      }
+
+      // Hitstun pauses the state machine but not the knockback carrying it away (02 §2.2).
+      if (entity.hitstun > 0) entity.hitstun--;
+      this.applyEnemyKnockback(entity);
+    }
+
+    if (died) this.buryTheDead();
+  }
+
+  /** Knockback moves an enemy even while stunned, colliding normally (01 §4.2, §5.2). */
+  private applyEnemyKnockback(entity: SimEntity): void {
+    if (entity.knockMag <= 0 || entity.knockDir === null) return;
+
+    const vel = dirVelocity(entity.knockDir, entity.knockMag);
+    const moved = moveAxisSeparated(
+      this.room,
+      boxOf(entity.kind),
+      { x: entity.x, y: entity.y },
+      vel,
+      moverOf(entity.kind),
+    );
+    entity.x = moved.x;
+    entity.y = moved.y;
+
+    entity.knockMag = Math.max(0, entity.knockMag - ENEMY_KNOCKBACK_DECAY);
+    if (entity.knockMag === 0) entity.knockDir = null;
+  }
+
+  /** Remove finished corpses and leave their drops on the tile they fell on (02 §2.1). */
+  private buryTheDead(): void {
+    const survivors: SimEntity[] = [];
+    for (const entity of this.entities) {
+      if (entity.state === EnemyState.DYING && entity.stateTimer <= 0) {
+        if (entity.drop) {
+          this.pickups.push({
+            at: [Math.floor(entity.x / TILE_SUBPX), Math.floor(entity.y / TILE_SUBPX)],
+            kind: entity.drop,
+            fromMap: false,
+          });
+        }
+        continue;
+      }
+      survivors.push(entity);
+    }
+    this.entities = survivors;
+  }
+
+  // -------------------------------------------------------------------------
   // Phase 7 — overlaps and trigger zones
   // -------------------------------------------------------------------------
 
@@ -509,9 +569,54 @@ export class Sim {
         continue;
       }
       grantPickup(pickup.kind, this.player, this.inventory);
-      this.persistence.set(pickupFlag(this.floor.id, this.roomId, pickup.at[0], pickup.at[1]));
+      // Only the map's own pickups are remembered; enemy drops are transient (01 §9).
+      if (pickup.fromMap) {
+        this.persistence.set(pickupFlag(this.floor.id, this.roomId, pickup.at[0], pickup.at[1]));
+      }
     }
     this.pickups = kept;
+  }
+
+  /**
+   * The swing's active window against every enemy it has not already hit (01 §4.2). One
+   * connection freezes the sim for 3 ticks, however many enemies it caught.
+   */
+  private resolveSwordHits(): void {
+    const player = this.player;
+    if (!isSwingActive(player)) return;
+
+    const blade = swordRect(player);
+    const from = playerCentre(player);
+    let connected = false;
+
+    for (const entity of this.entities) {
+      if (!isActive(entity) || player.swingHits.includes(entity.id)) continue;
+      const box = boxRect(boxOf(entity.kind), entity);
+      if (!rectsOverlap(blade, box)) continue;
+
+      const centre = rectCentre(box);
+      damageEnemy(entity, SWORD_DAMAGE, snap8(centre.x - from.x, centre.y - from.y));
+      player.swingHits.push(entity.id);
+      connected = true;
+    }
+
+    if (connected) this.hitStop = HIT_STOP_TICKS;
+  }
+
+  /** Touching an enemy hurts; the enemy is not interrupted by it (02 §2.1). */
+  private resolveContactDamage(): void {
+    const hurtBox = boxRect(PLAYER_BOX, this.player);
+
+    for (const entity of this.entities) {
+      if (!isActive(entity)) continue;
+      const box = boxRect(boxOf(entity.kind), entity);
+      if (!rectsOverlap(hurtBox, box)) continue;
+
+      if (damagePlayer(this.player, ENEMY_STATS[entity.kind].contactDamage, rectCentre(box))) {
+        this.hitStop = HIT_STOP_TICKS;
+      }
+      return; // one source of damage per tick; i-frames would refuse the rest anyway
+    }
   }
 
   /** Normal doors open on proximity: hitbox centre within 24 px of the door's centre (01 §8.1). */
@@ -675,7 +780,7 @@ export class Sim {
     h = writeInt32(h, this.deaths);
 
     for (const e of this.entities) {
-      h = writeInt32(h, e.type);
+      h = writeInt32(h, ENEMY_TYPE_ID[e.kind]);
       h = writeInt32(h, e.x);
       h = writeInt32(h, e.y);
       h = writeInt32(h, e.hp);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { createEntity } from '../../src/sim/enemy.js';
 import { hashString, newHash, writeByte, writeInt32 } from '../../src/sim/hash.js';
 import { DOWN, RIGHT } from '../../src/sim/input.js';
 import { hashStream, runInputs } from '../../src/sim/replay.js';
@@ -97,15 +98,7 @@ describe('state hash', () => {
 // level data; these tests pin the order and the flag sorting so filling the rest in M3–M4
 // cannot reorder the stream.
 describe('state hash — collection sections', () => {
-  const entity = (x: number) => ({
-    type: 1,
-    x,
-    y: 0,
-    hp: 2,
-    state: 0,
-    stateTimer: 0,
-    drop: null,
-  });
+  const entity = (x: number) => createEntity(0, 'skel_sword', x, 0, null);
 
   it('covers entities, traps, doors and persistent flags', () => {
     const s = sim();
