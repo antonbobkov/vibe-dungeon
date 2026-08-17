@@ -615,6 +615,58 @@ export function entryTile(place: EntryPlacement): Cell {
   return [Math.floor(centre.x / TILE_SUBPX), Math.floor(centre.y / TILE_SUBPX)];
 }
 
+/**
+ * Build a room model straight from a tile grid, for the ad-hoc maps unit tests and the debug
+ * tools use. It derives what the symbols alone can say — pickups, props and default-parameter
+ * traps — so an ASCII room behaves like a loaded one. Enemies need a marker table, so callers
+ * that want them place them themselves.
+ */
+export function adHocRoom(base: Room, id = 'R1'): LoadedRoom {
+  const room: LoadedRoom = {
+    id,
+    name: id,
+    spec: { id, name: id, map: [] },
+    base,
+    w: base.w,
+    h: base.h,
+    combatSeal: false,
+    spawn: base.spawn ? [base.spawn.col, base.spawn.row] : null,
+    ladder: null,
+    enemies: [],
+    traps: [],
+    pickups: [],
+    props: [],
+    torchGroups: [],
+    waves: [],
+    decor: [],
+    doorCells: new Map(),
+  };
+
+  for (const s of base.symbols) {
+    if (s.ch === 'V') room.ladder = [s.col, s.row];
+
+    const pickup = PICKUP_SYMBOLS[s.ch];
+    if (pickup) room.pickups.push({ at: [s.col, s.row], kind: pickup });
+
+    const trap = TRAP_SYMBOLS[s.ch];
+    if (trap) {
+      room.traps.push({
+        at: [s.col, s.row],
+        kind: trap,
+        period: TRAP_DEFAULT_PERIOD[trap],
+        offset: 0,
+        alwaysOn: false,
+        deadly: deadlyCell(trap, s.col, s.row),
+      });
+    }
+
+    const prop = PROP_SYMBOLS[s.ch];
+    if (prop) room.props.push({ at: [s.col, s.row], kind: prop, contents: [], drop: null });
+  }
+
+  return room;
+}
+
 /** The end of a door you arrive at, given the room you are leaving. */
 export function otherEnd(door: LoadedDoor, fromRoom: string): LoadedDoorEnd {
   return door.a.room === fromRoom ? door.b : door.a;

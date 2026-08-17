@@ -47,6 +47,9 @@ export const pitFlag = (floorId: string, roomId: string, col: number, row: numbe
 export const torchFlag = (floorId: string, roomId: string, col: number, row: number): string =>
   `${floorId}/${roomId}/torch/${cell(col, row)}`;
 
+/** A torch group that has been completed stays lit for good (02 §4.3). */
+export const groupFlag = (floorId: string, groupId: string): string => `${floorId}/${groupId}/lit`;
+
 /** A combat_seal room that has been cleared never respawns its enemies (01 §8.3, §9). */
 export const clearedFlag = (floorId: string, roomId: string): string =>
   `${floorId}/${roomId}/cleared`;

@@ -17,6 +17,7 @@ import {
   DEATH_BLACK_TICKS,
   DOOR_OPEN_RADIUS_PX,
   DYING_TICKS,
+  PUSH_CHARGE_TICKS,
   ENEMY_KNOCKBACK_DECAY,
   TRAP_DAMAGE,
   ENEMY_STATS,
@@ -43,10 +44,19 @@ import {
   updateEnemy,
   type SimEntity,
 } from './enemy.js';
-import { boxRect, dirVelocity, rectCentre, rectsOverlap, snap8 } from './geometry.js';
+import {
+  Dir8,
+  boxRect,
+  dirVelocity,
+  rectCentre,
+  rectsOverlap,
+  snap8,
+  tileRect,
+} from './geometry.js';
 import { hashString, newHash, writeInt32 } from './hash.js';
 import { INPUT_MASK, UP, moveAxes, pressed, INTERACT } from './input.js';
 import {
+  adHocRoom,
   cellKey,
   entryPlacement,
   otherEnd,
@@ -61,10 +71,26 @@ import {
   Persistence,
   clearedFlag,
   doorFlag,
+  groupFlag,
   pickupFlag,
   pitFlag,
   propFlag,
+  torchFlag,
 } from './persistence.js';
+import {
+  PropState,
+  breakCrate,
+  createProp,
+  createTorchGroup,
+  groupHas,
+  isBreakable,
+  isChest,
+  openChest,
+  slideTarget,
+  startSlide,
+  type SimProp,
+  type SimTorchGroup,
+} from './prop.js';
 import {
   Facing,
   PlayerState,
@@ -136,27 +162,29 @@ const DIR_FACING: Record<'U' | 'D' | 'L' | 'R', Facing> = {
   R: Facing.R,
 };
 
+/**
+ * Which cardinal a walk is pressing a crate along, or null. Horizontal is tried first, the
+ * same tie-break 02 §2.1's steering uses, so a diagonal into a corner pushes sideways.
+ */
+function pushDirection(
+  box: { l: number; t: number; r: number; b: number },
+  vel: { x: number; y: number },
+  at: Cell,
+): Dir8 | null {
+  const cell = tileRect(at[0], at[1]);
+  const reaches = (ox: number, oy: number): boolean =>
+    rectsOverlap({ l: box.l + ox, t: box.t + oy, r: box.r + ox, b: box.b + oy }, cell);
+
+  if (vel.x > 0 && reaches(vel.x, 0)) return Dir8.R;
+  if (vel.x < 0 && reaches(vel.x, 0)) return Dir8.L;
+  if (vel.y > 0 && reaches(0, vel.y)) return Dir8.D;
+  if (vel.y < 0 && reaches(0, vel.y)) return Dir8.U;
+  return null;
+}
+
 /** Wrap a bare tile grid as a one-room floor, so ad-hoc test rooms take the same code path. */
 function syntheticFloor(room: Room): LoadedFloor {
-  const loaded: LoadedRoom = {
-    id: 'R1',
-    name: 'room',
-    spec: { id: 'R1', name: 'room', map: [] },
-    base: room,
-    w: room.w,
-    h: room.h,
-    combatSeal: false,
-    spawn: room.spawn ? [room.spawn.col, room.spawn.row] : null,
-    ladder: null,
-    enemies: [],
-    traps: [],
-    pickups: [],
-    props: [],
-    torchGroups: [],
-    waves: [],
-    decor: [],
-    doorCells: new Map(),
-  };
+  const loaded = adHocRoom(room);
   return {
     id: 'f1',
     name: 'room',
@@ -198,8 +226,13 @@ export class Sim {
   /** Bolts in flight, in spawn order — 01 §1 phase 5 (02 §3.2). */
   bolts: SimBolt[] = [];
   pickups: SimPickup[] = [];
+  props: SimProp[] = [];
+  torchGroups: SimTorchGroup[] = [];
   /** Tiles a trap makes deadly this tick, recomputed in phase 6. */
   deadly: Cell[] = [];
+  /** Triggers raised this tick, for the wiring phase to read (03 §1.6). */
+  openedChests: Cell[] = [];
+  litGroups: string[] = [];
   private nextBoltId = 0;
 
   /** Play-time ticks (01 §1 phase 2). Pause does not advance it (01 §10). */
@@ -308,6 +341,9 @@ export class Sim {
 
     // 4. Enemy updates, ascending spawn id (02 §2).
     this.updateEnemies();
+    this.openedChests = [];
+    this.litGroups = [];
+
     // 5. Projectile updates, ascending spawn order (02 §3.2).
     this.updateBolts();
 
@@ -320,6 +356,10 @@ export class Sim {
     }
     this.deadly = deadlyTiles(this.traps);
 
+    // 01 §1 has no phase of its own for props, so their timers run here: after the world has
+    // moved and before the overlaps and wiring that read them (02 §4).
+    this.updateProps();
+
     // 7. Overlap resolution: pickups, damage, then trigger zones (01 §1).
     this.collectPickups();
     this.resolveSwordHits();
@@ -327,6 +367,8 @@ export class Sim {
     this.resolveTrapDamage();
     this.openNearbyDoors();
     this.unlockDoors();
+    this.interactWithProps();
+    this.updatePushes();
     this.checkLadder();
     this.checkTransition();
 
@@ -429,12 +471,22 @@ export class Sim {
         }
       }
     }
-    for (const prop of def.props) {
-      // Destroyed crates leave the floor clear; opened chests stay put, empty (01 §9).
-      const gone = this.persistence.has(propFlag(floorId, def.id, prop.at[0], prop.at[1]));
-      if (gone && (prop.kind === 'crate_wood' || prop.kind === 'crate_steel')) {
-        setTile(this.room, prop.at[0], prop.at[1], TileClass.FLOOR);
+    // Props, with what the floor remembers about them applied (01 §9). Pushable crates are
+    // simply rebuilt from the map, which is what undoes a jammed configuration (02 §4.2).
+    this.torchGroups = def.torchGroups.map(createTorchGroup);
+    this.props = [];
+    for (const spec of def.props) {
+      const remembered = this.persistence.has(propFlag(floorId, def.id, spec.at[0], spec.at[1]));
+      if (remembered && (isBreakable(spec.kind) || spec.kind === 'crate_push')) {
+        // A destroyed crate, or one swallowed by a pit, leaves the floor clear.
+        setTile(this.room, spec.at[0], spec.at[1], TileClass.FLOOR);
+        continue;
       }
+
+      const prop = createProp(spec);
+      if (remembered && isChest(spec.kind)) prop.state = PropState.OPEN;
+      if (spec.kind === 'torch' && this.torchIsLit(def, spec.at)) prop.state = PropState.LIT;
+      this.props.push(prop);
     }
 
     // Pickups: everything not already collected.
@@ -466,6 +518,19 @@ export class Sim {
     this.player.y = y;
     this.player.facing = facing;
     this.checkpoint = { x, y, facing, hp: this.player.hp };
+  }
+
+  /**
+   * Whether a puzzle torch comes back lit (01 §9, 02 §4.3). A completed group is lit for
+   * good; an unfinished *windowed* group resets, while an unfinished windowless one keeps
+   * whatever was lit.
+   */
+  private torchIsLit(def: LoadedRoom, at: Cell): boolean {
+    const floorId = this.floor.id;
+    const group = def.torchGroups.find((g) => groupHas({ ...g, timer: -1 }, at));
+    if (group && this.persistence.has(groupFlag(floorId, group.id))) return true;
+    if (group?.window != null) return false;
+    return this.persistence.has(torchFlag(floorId, def.id, at[0], at[1]));
   }
 
   /** Door open states for the current floor, rebuilt from persistence (05 §4 hashes these). */
@@ -578,6 +643,216 @@ export class Sim {
   }
 
   // -------------------------------------------------------------------------
+  // Props — 02 §4
+  // -------------------------------------------------------------------------
+
+  /** Advance every prop's timer, and the torch-group windows with them. */
+  private updateProps(): void {
+    const survivors: SimProp[] = [];
+
+    for (const prop of this.props) {
+      switch (prop.state) {
+        case PropState.OPENING:
+          prop.timer--;
+          if (prop.timer <= 0) this.finishOpening(prop);
+          break;
+
+        case PropState.DESTROYING:
+          prop.timer--;
+          if (prop.timer <= 0) {
+            this.finishDestroying(prop);
+            continue; // the crate is gone
+          }
+          break;
+
+        case PropState.SLIDING:
+          prop.timer--;
+          if (prop.timer <= 0 && !this.finishSlide(prop)) continue; // consumed by a pit
+          break;
+
+        default:
+          break;
+      }
+      survivors.push(prop);
+    }
+
+    this.props = survivors;
+    this.updateTorchWindows();
+  }
+
+  /** A chest hands over everything at once, exactly once (02 §4.1). */
+  private finishOpening(prop: SimProp): void {
+    prop.state = PropState.OPEN;
+    prop.timer = 0;
+    for (const item of prop.contents) grantPickup(item, this.player, this.inventory);
+    this.persistence.set(propFlag(this.floor.id, this.roomId, prop.at[0], prop.at[1]));
+    this.openedChests.push(prop.at);
+  }
+
+  /** A broken crate leaves the floor clear and its drop behind (02 §4.2). */
+  private finishDestroying(prop: SimProp): void {
+    setTile(this.room, prop.at[0], prop.at[1], TileClass.FLOOR);
+    this.persistence.set(propFlag(this.floor.id, this.roomId, prop.at[0], prop.at[1]));
+    if (prop.drop) this.pickups.push({ at: prop.at, kind: prop.drop, fromMap: false });
+  }
+
+  /**
+   * A slide that has run its 12 ticks. Returns false when the crate was consumed bridging a
+   * pit, which is permanent (02 §4.2).
+   */
+  private finishSlide(prop: SimProp): boolean {
+    const to = prop.slideTo!;
+    const from = prop.at;
+    setTile(this.room, from[0], from[1], TileClass.FLOOR);
+
+    if (tileAt(this.roomDef.base, to[0], to[1]) === TileClass.PIT) {
+      setTile(this.room, to[0], to[1], TileClass.BRIDGED_PIT);
+      this.persistence.set(pitFlag(this.floor.id, this.roomId, to[0], to[1]));
+      // The crate object is gone for good, so it must not be rebuilt from the map either
+      // (02 §4.2) — remembered against the cell the map put it in.
+      this.persistence.set(propFlag(this.floor.id, this.roomId, prop.origin[0], prop.origin[1]));
+      return false;
+    }
+
+    prop.at = to;
+    prop.state = PropState.IDLE;
+    prop.slideTo = null;
+    setTile(this.room, to[0], to[1], TileClass.PROP);
+    return true;
+  }
+
+  /** INTERACT opens a chest or lights a torch on the 01 §4.3 target tile. */
+  private interactWithProps(): void {
+    if (!pressed(this.input, this.prevInput, INTERACT)) return;
+    const [col, row] = this.interactTile();
+    const prop = this.props.find((p) => p.at[0] === col && p.at[1] === row);
+    if (!prop) return;
+
+    if (isChest(prop.kind)) {
+      openChest(prop);
+      return;
+    }
+    if (prop.kind === 'torch' && prop.state === PropState.IDLE) this.lightTorch(prop);
+  }
+
+  /**
+   * Light one torch and see where that leaves its group (02 §4.3). The first light starts the
+   * window; the last one fires the wiring and makes the whole group permanent.
+   */
+  private lightTorch(prop: SimProp): void {
+    prop.state = PropState.LIT;
+
+    const group = this.torchGroups.find((g) => groupHas(g, prop.at));
+    if (!group) return;
+    if (group.timer < 0) group.timer = 0;
+
+    const complete = group.members.every(([col, row]) =>
+      this.props.some(
+        (p) =>
+          p.kind === 'torch' && p.at[0] === col && p.at[1] === row && p.state === PropState.LIT,
+      ),
+    );
+
+    if (!complete) {
+      // A windowless group keeps each torch on its own; a windowed one is all or nothing
+      // until it completes (01 §9).
+      if (group.window === null) {
+        this.persistence.set(torchFlag(this.floor.id, this.roomId, prop.at[0], prop.at[1]));
+      }
+      return;
+    }
+
+    group.timer = -1;
+    this.persistence.set(groupFlag(this.floor.id, group.id));
+    for (const [col, row] of group.members) {
+      this.persistence.set(torchFlag(this.floor.id, this.roomId, col, row));
+    }
+    this.litGroups.push(group.id);
+  }
+
+  /** A window that runs out puts every torch in the group back out (02 §4.3). */
+  private updateTorchWindows(): void {
+    for (const group of this.torchGroups) {
+      if (group.timer < 0 || group.window === null) continue;
+
+      group.timer++;
+      if (group.timer < group.window) continue;
+
+      group.timer = -1;
+      for (const [col, row] of group.members) {
+        const torch = this.props.find((p) => p.at[0] === col && p.at[1] === row);
+        if (torch) torch.state = PropState.IDLE;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pushing (02 §4.2)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Six consecutive contact ticks in one direction start a slide. Contact is the same test
+   * walking into a locked door uses: the hitbox translated by this tick's walk velocity
+   * reaching the crate's tile. An illegal destination never charges at all.
+   */
+  private updatePushes(): void {
+    const pushing = this.player.state === PlayerState.NORMAL;
+    const { dx, dy } = moveAxes(this.input);
+    const vel = walkVelocity(dx, dy);
+    const box = this.hitbox();
+
+    for (const prop of this.props) {
+      if (!pushing || prop.kind !== 'crate_push' || prop.state !== PropState.IDLE) {
+        prop.charge = 0;
+        prop.chargeDir = null;
+        continue;
+      }
+
+      const dir = pushDirection(box, vel, prop.at);
+      const to = dir === null ? null : slideTarget(prop.at, dir);
+      if (dir === null || to === null || !this.canSlideInto(to)) {
+        prop.charge = 0;
+        prop.chargeDir = null;
+        continue;
+      }
+
+      prop.charge = prop.chargeDir === dir ? prop.charge + 1 : 1;
+      prop.chargeDir = dir;
+
+      if (prop.charge >= PUSH_CHARGE_TICKS) {
+        startSlide(prop, to);
+        // Solid throughout: the destination is claimed for the whole slide.
+        setTile(this.room, to[0], to[1], TileClass.PROP);
+      }
+    }
+  }
+
+  /**
+   * 02 §4.2: the destination must be a plain floor tile holding no entity, prop, pickup,
+   * trap or door — or a pit, which swallows the crate and becomes a bridge.
+   */
+  private canSlideInto(to: Cell): boolean {
+    const [col, row] = to;
+    if (col < 0 || row < 0 || col >= this.room.w || row >= this.room.h) return false;
+
+    const cls = tileAt(this.room, col, row);
+    if (cls === TileClass.PIT) return true;
+    if (cls !== TileClass.FLOOR && cls !== TileClass.BRIDGED_PIT) return false;
+
+    if (this.roomDef.doorCells.has(cellKey(col, row))) return false;
+    if (this.pickups.some((p) => p.at[0] === col && p.at[1] === row)) return false;
+    if (this.props.some((p) => p.at[0] === col && p.at[1] === row)) return false;
+
+    for (const trap of this.traps) {
+      if (trap.def.at[0] === col && trap.def.at[1] === row) return false;
+      if (trap.def.deadly && trap.def.deadly[0] === col && trap.def.deadly[1] === row) return false;
+    }
+
+    const cell = tileRect(col, row);
+    return !this.entities.some((e) => isActive(e) && rectsOverlap(cell, boxRect(boxOf(e.kind), e)));
+  }
+
+  // -------------------------------------------------------------------------
   // Phase 5 — projectiles (02 §3.2)
   // -------------------------------------------------------------------------
 
@@ -665,6 +940,13 @@ export class Sim {
       damageEnemy(entity, SWORD_DAMAGE, snap8(centre.x - from.x, centre.y - from.y));
       player.swingHits.push(entity.id);
       connected = true;
+    }
+
+    // 01 §4.2 lists destructible crates alongside enemies. A crate leaves IDLE the moment it
+    // is hit, so "once each per swing" needs no bookkeeping — and only enemies stop the sim.
+    for (const prop of this.props) {
+      if (!isBreakable(prop.kind) || prop.state !== PropState.IDLE) continue;
+      if (rectsOverlap(blade, tileRect(prop.at[0], prop.at[1]))) breakCrate(prop);
     }
 
     if (connected) this.hitStop = HIT_STOP_TICKS;

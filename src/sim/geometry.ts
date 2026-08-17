@@ -6,7 +6,7 @@
  */
 
 import { diagAxis, type Box, type Vec } from './collision.js';
-import { LOS_SAMPLE_PX, SUBPX } from './constants.js';
+import { LOS_SAMPLE_PX, SUBPX, TILE_SUBPX } from './constants.js';
 
 /** The eight compass directions, clockwise from U — the order 01 §4.2 breaks ties in. */
 export enum Dir8 {
@@ -115,6 +115,13 @@ export function boxRect(box: Box, pos: Vec): Rect {
   const l = pos.x + box.offX * SUBPX;
   const t = pos.y + box.offY * SUBPX;
   return { l, t, r: l + box.w * SUBPX, b: t + box.h * SUBPX };
+}
+
+/** The rectangle covering one tile — what traps, crates and chests occupy. */
+export function tileRect(col: number, row: number): Rect {
+  const l = col * TILE_SUBPX;
+  const t = row * TILE_SUBPX;
+  return { l, t, r: l + TILE_SUBPX, b: t + TILE_SUBPX };
 }
 
 export function rectsOverlap(a: Rect, b: Rect): boolean {
