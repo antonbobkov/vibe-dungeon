@@ -6,7 +6,7 @@
  */
 
 import { diagAxis, type Box, type Vec } from './collision.js';
-import { SUBPX, TILE_SUBPX } from './constants.js';
+import { LOS_SAMPLE_PX, SUBPX } from './constants.js';
 
 /** The eight compass directions, clockwise from U — the order 01 §4.2 breaks ties in. */
 export enum Dir8 {
@@ -117,13 +117,6 @@ export function boxRect(box: Box, pos: Vec): Rect {
   return { l, t, r: l + box.w * SUBPX, b: t + box.h * SUBPX };
 }
 
-/** The rectangle covering one tile. */
-export function tileRect(col: number, row: number): Rect {
-  const l = col * TILE_SUBPX;
-  const t = row * TILE_SUBPX;
-  return { l, t, r: l + TILE_SUBPX, b: t + TILE_SUBPX };
-}
-
 export function rectsOverlap(a: Rect, b: Rect): boolean {
   return a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
 }
@@ -135,4 +128,28 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
  */
 export function rectCentre(rect: Rect): Vec {
   return { x: (rect.l + rect.r) >> 1, y: (rect.t + rect.b) >> 1 };
+}
+
+/**
+ * The number of segments 02 §2.1's line of sight samples: `max(1, ceil(dist_px / 8))`.
+ *
+ * Computed by walking up from 1 rather than through a square root, so the sim stays free of
+ * floating point (00-overview §Determinism rule 4). A room's diagonal is under 6000
+ * subpixels, so this never runs more than about 47 times.
+ */
+export function losSegments(distSq: number): number {
+  const step = LOS_SAMPLE_PX * SUBPX;
+  let n = 1;
+  while (n * step * n * step < distSq) n++;
+  return n;
+}
+
+/** Rotate a direction 90° clockwise on screen, where y grows downward. */
+export function rotateClockwise(dir: Dir8): Dir8 {
+  return ((dir + 2) % 8) as Dir8;
+}
+
+/** The direction facing the other way. */
+export function reverse(dir: Dir8): Dir8 {
+  return ((dir + 4) % 8) as Dir8;
 }

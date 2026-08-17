@@ -38,6 +38,8 @@ import {
   damageEnemy,
   isActive,
   moverOf,
+  separateEnemies,
+  updateEnemy,
   type SimEntity,
 } from './enemy.js';
 import { boxRect, dirVelocity, rectCentre, rectsOverlap, snap8 } from './geometry.js';
@@ -285,6 +287,11 @@ export class Sim {
       return;
     }
 
+    // The room clock advances once, here, so every system that reads it sees the same value
+    // on the same tick: the traps of 02 §3 and the wisp's wobble of 02 §2.4, which the spec
+    // says share this clock. A frozen or suspended tick is not a room tick.
+    this.roomTimer++;
+
     // 3. Player update: state machine, then movement + collision (01 §3, §4).
     this.updatePlayerPhase();
     if (this.script) return;
@@ -293,7 +300,6 @@ export class Sim {
     this.updateEnemies();
     // 5. Projectile updates, ascending spawn order — M4.
     // 6. Trap updates: advance phase counters, compute deadly sets (02 §3; damage is M4).
-    this.roomTimer++;
     for (const trap of this.traps) {
       trap.phase = (this.roomTimer + trap.def.offset) % trap.def.period;
     }
@@ -499,7 +505,15 @@ export class Sim {
       // Hitstun pauses the state machine but not the knockback carrying it away (02 §2.2).
       if (entity.hitstun > 0) entity.hitstun--;
       this.applyEnemyKnockback(entity);
+      updateEnemy(entity, {
+        room: this.room,
+        target: playerCentre(this.player),
+        roomTimer: this.roomTimer,
+      });
     }
+
+    // Overlapping enemies shoulder each other apart once everyone has moved (02 §2.1).
+    separateEnemies(this.entities);
 
     if (died) this.buryTheDead();
   }
