@@ -175,25 +175,51 @@ macros in the same commit); README with run instructions.
 
 Game-feel checklist (each item verified implemented; renderer items by targeted unit
 test or e2e assertion where feasible, otherwise by explicit code-review checklist in
-the PR/commit description):
-- [ ] hit-stop 3 ticks on sword connect · [ ] screen shake on player damage
-- [ ] white damage flashes (player + enemies) · [ ] i-frame blink 3/3
-- [ ] walk bob + facing flip (player + enemies) · [ ] attack lunge + drawn arc
-- [ ] door auto-open at 24 px + leaf art swap · [ ] spawn telegraph cursors
-- [ ] chest item float-up · [ ] crate pit-drop animation · [ ] torch smoke-puff on reset
-- [ ] death spin/fade + YOU FELL · [ ] victory sequence per 04 §3.3
-- [ ] title blink · [ ] all 19 audio cues wired + M mute
-- [ ] transition slide smooth at 60 fps
+the PR/commit description). The test that proves each is named beside it:
+
+- [x] hit-stop 3 ticks on sword connect — `combat.spec.ts`, `damage.spec.ts`
+- [x] screen shake on player damage — `world.spec.ts` (`shakeOffset`: ±2 px, six ticks)
+- [x] white damage flashes (player + enemies) — `sprites.spec.ts`
+- [x] i-frame blink 3/3 — `sprites.spec.ts`
+- [x] walk bob + facing flip (player + enemies) — `sprites.spec.ts`
+- [x] attack lunge + drawn arc — `sprites.spec.ts` (lunge), `world.spec.ts` (`arcPixels`:
+      radius, sweep, one white leading pixel)
+- [x] door auto-open at 24 px + leaf art swap — `doors.spec.ts`, `world.spec.ts`
+      (`doorLeafSide`)
+- [x] spawn telegraph cursors — `sprites.spec.ts`, `wave.spec.ts`
+- [x] chest item float-up — `events.spec.ts` (8 px over 30 ticks, 10 ticks apart)
+- [x] crate pit-drop animation — `events.spec.ts` (the event fires after the sim has
+      already deleted the prop, which is why the effect list exists)
+- [x] torch smoke-puff on reset — `events.spec.ts` (one per reverted member, 6 ticks)
+- [x] death spin/fade + YOU FELL — `sprites.spec.ts` (flip every 4, fade over the last
+      40), `screens.spec.ts` (the text, through a recording context)
+- [x] victory sequence per 04 §3.3 — `play.spec.ts` drives the full game to it
+- [x] title blink — `world.spec.ts` (`promptVisible`), `play.spec.ts`
+- [x] all 19 audio cues wired + M mute — `audio.spec.ts` pins all 18 cues over their 19
+      triggers against 04 §5; `events.spec.ts` pins each trigger; `play.spec.ts` counts
+      the synth's oscillators and checks mute survives a reload
+- [x] transition slide smooth at 60 fps — `world.spec.ts` (`slideVector`), and the
+      renderer bench draws the busiest frame in the game at p95 0.4 ms
 
 Done when:
-- All suites green (`typecheck`, `lint`, `test`, `lint:levels`, `test:replay`,
-  `test:e2e`; local `test:visual`).
-- Perf bench (Vitest, CI machine): p95 sim tick ≤ 2 ms across the chained full-game
+- [x] All suites green (`typecheck`, `lint`, `test`, `lint:levels`, `test:replay`,
+  `test:e2e`, `bench`; local `test:visual`).
+- [x] Perf bench (Vitest, CI machine): p95 sim tick ≤ 2 ms across the chained full-game
   replay; renderer draw of the busiest room (F4R4 wave 3) ≤ 4 ms p95 in a canvas
-  bench (local).
-- Checklist above fully checked in this file (edit it to `[x]` as items land).
-- A human (the project owner) has played start to finish once — the only manual gate,
-  for feel, not correctness.
+  bench (local). Measured: p95 0.009 ms a tick, 0.4 ms a draw.
+- [x] Checklist above fully checked in this file (edit it to `[x]` as items land).
+- [ ] A human (the project owner) has played start to finish once — the only manual gate,
+  for feel, not correctness. `npm run dev`, and what to feel for:
+  - does hit-stop land on a connect without eating the next input;
+  - is the Arena fair at the HP you actually arrive with (the solution replay reaches it
+    on five hearts of six);
+  - do the fades and the room slide read as smooth, or as a stutter;
+  - are the cues informative rather than noisy at the 0.2 gain 04 §5 sets;
+  - is anything in the four floors unclear about what it wants you to do.
+
+  Any constant this pass changes means updating the spec table and `constants.ts`
+  together and re-recording the affected macros in the same commit; nothing was
+  changed by M7 itself.
 
 ## Milestone dependencies
 
