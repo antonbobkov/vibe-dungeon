@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:levels": "tsx tools/level-lint.ts levels",
+    "route": "tsx tools/route.ts",
     "macro:compile": "tsx tools/macro-compile.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
