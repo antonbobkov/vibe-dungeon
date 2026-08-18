@@ -1,0 +1,57 @@
+# Floor 2 — The Vaults. The solution path of 03-levels §3, row for row.
+#
+# The two coins in R1's east corner are deliberately left behind: 03 §6's solution path
+# collects 81 of the game's 83, and these are the two it skips.
+
+floor f2
+start hp=6 treasure=20 deaths=0
+
+say Floor 2 - The Vaults (03-levels section 3)
+assert room=R1 floor=2 treasure=20
+
+say R1: straight north past the two anti-phased spikes, leaving the corner coins
+door d1
+
+say R2: the Spike Gallery. The walker threads the clear columns between the rows.
+collect 4,5 3,5 7,3
+assert room=R2 treasure=23
+
+say R2 to R3 through the east gap
+door d2
+say R3: six coins between the volleys of the three launchers
+collect 3,5 6,5 9,5 9,2 6,2 3,2
+assert room=R3 treasure=29
+
+say R3 north into the Torch Shrine
+door d3
+say R4: the two zombies, the two coins, then all four torches to open d4
+clear
+collect 3,5 7,5
+light 2,2
+light 8,2
+light 2,6
+light 8,6
+assert room=R4 treasure=31
+
+say d4 is open: north into the Guard Hall
+door d4
+say R5: the axe skeleton, then its flask
+clear
+goto 6,5
+assert room=R5
+
+say R5 to R6 through the west gap
+door d5
+say R6: four corner coins, then the ring, which is safe for 108 ticks of every 180
+collect 9,1 1,1 1,7 9,7
+goto 5,3
+assert room=R6 treasure=35 silverKeys=1
+
+say R6 back to R2 through the south door d6
+door d6
+say R2 to R7: the silver door d7 takes the key
+door d7
+collect 2,2 3,3 4,2
+assert room=R7 treasure=38
+ladder
+assert floor=3 treasure=38 silverKeys=0

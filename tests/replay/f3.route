@@ -1,0 +1,63 @@
+# Floor 3 — The Furnace. The solution path of 03-levels §4, row for row.
+
+floor f3
+start hp=6 treasure=38 deaths=0
+
+say Floor 3 - The Furnace (03-levels section 4)
+assert room=R1 floor=3 treasure=38
+
+say R1: the coin below the flame jet, then north
+collect 3,2
+door d1
+assert room=R2 treasure=39
+
+say R2: shove the crate into the trench and walk over it
+goto 6,5
+push U 2
+goto 6,3
+collect 4,1 3,1
+assert room=R2 treasure=41
+
+say R2 north into the Wisp Den
+door d2
+say R3: two wisps and a zombie between the player and the coin
+clear
+collect 6,2
+assert room=R3 treasure=42
+
+say R3 to R4 through the east gap
+door d3
+say R4: the Flame Walk. Three jets, six spikes, three coins and the flask under jet one.
+collect 3,5 11,5 12,2
+goto 1,1
+assert room=R4 treasure=45
+
+say R4 north into the Kiln Vault
+door d4
+say R5: the crate bridges the pit ring, the key sits on the island
+collect 11,1 1,1
+goto 6,7
+push U 2
+goto 6,3
+assert room=R5 treasure=47 silverKeys=1
+
+say Back south and west to the Wisp Den
+door d4
+door d3
+say The den's enemies are rebuilt on every entry (01 section 9), so it is cleared again
+clear
+say R3 north-east into the sealed Ash Hoard
+door d5
+say R6: the seal shuts until all three are down, then the chest and the two coins
+clear
+open 5,1
+collect 2,4 8,4
+assert room=R6 treasure=53 silverKeys=1
+
+say R6 back to R3, then the silver door d6 into the Descent
+door d5
+door d6
+collect 2,2 3,3 4,2
+assert room=R7 treasure=56 silverKeys=0
+ladder
+assert floor=4 treasure=56

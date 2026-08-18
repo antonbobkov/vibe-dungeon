@@ -265,7 +265,7 @@ R6─d6─R2 (shortcut back) · R2─d7(silver)─R7(ladder).
 
 ```
 ###DD####
-#..cc...#
+#.....cc#
 #.......#
 #..ss...#
 #.......#
@@ -696,8 +696,8 @@ The four 2×2 pillar blocks are interior walls (§1.3) — cover from lunges and
 | **Game** | 61 | 22 | **83** | gold: 1 / 1 (d5) | |
 
 The maps + prop tables are authoritative; this table is the lint-checked cross-total.
-The solution paths collect 81 of 83 — they skip the 2 coins in floor 2's Landing room
-(R1), which sit behind the player's starting position. Victory screen shows
+The solution paths collect 81 of 83 — they skip the 2 coins in the east corner of
+floor 2's Landing room (R1), which sit off the path to its door. Victory screen shows
 `TREASURE n/83`.
 
 Max-HP note: the game has no HP upgrades; red flasks are the only healing. Difficulty

@@ -1,0 +1,55 @@
+# Floor 1 — The Gatehouse. The solution path of 03-levels §2, row for row.
+#
+# Compiled to f1.macro with `npm run route -- tests/replay/f1.route`; the macro is what
+# ships and what npm run test:replay checks.
+
+floor f1
+start hp=6 treasure=0 deaths=0
+
+say Floor 1 - The Gatehouse (03-levels section 2)
+assert room=R1 floor=1 treasure=0 hp=6
+
+say R1: the four coins of the Entry Hall, then north through d1
+collect 5,3 5,2 4,2 4,3
+door d1
+assert room=R2 treasure=4
+
+say R2: the first skeleton, both crates, and the coin in the middle
+clear
+break 2,2
+break 10,2
+goto 6,6
+assert room=R2 treasure=6
+
+say R2 to R3 through the east gap d2
+door d2
+say R3: the second skeleton, the crate coin, three floor coins, and the mini chest
+clear
+break 3,1
+collect 5,2 3,4 2,5
+open 6,5
+assert room=R3 treasure=10 silverKeys=1
+
+say Back west into R2 and north through the silver door d3, which eats the key
+door d2
+door d3
+assert room=R4 silverKeys=0
+
+say R4: two guards, the flask and the coin below them
+clear
+collect 5,5 5,6
+door d4
+assert room=R5 treasure=11
+
+say R5: the Old Treasury chest, and the crate beside it
+open 5,1
+break 2,2
+break 8,2
+assert room=R5 treasure=17
+
+say R5 to R6 through the east gap, then the last three coins and the ladder
+door d5
+collect 2,2 3,3 4,2
+assert room=R6 treasure=20
+ladder
+assert floor=2 treasure=20 silverKeys=0
