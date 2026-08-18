@@ -19,7 +19,8 @@
     "replay:record": "tsx tools/replay-record.ts",
     "test:replay": "tsx tools/replay-test.ts",
     "sim": "tsx tools/sim-cli.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:visual": "playwright test -c playwright.visual.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

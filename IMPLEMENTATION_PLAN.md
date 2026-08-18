@@ -158,10 +158,12 @@ accumulator and replay injection hook for tests.
 Done when:
 - Playwright (`PLACEHOLDER_ART=1`): boots to title; ATTACK starts floor 1; injecting
   the f1 replay through the browser loop completes the floor (HUD shows F2); pause
-  overlay appears and resumes; no console errors.
+  overlay appears and resumes; no console errors. Driven through `window.undervault`
+  (`tests/e2e/play.spec.ts`); the M2 debug view is still there behind `?debug=1`.
 - Local-only (`npm run test:visual`, auto-skipped when `art_assets/` is missing):
   screenshot goldens of title screen and floor-1-room-1 first frame match; goldens
-  regenerated only via `npm run test:visual -- --update` in a reviewed commit.
+  regenerated only via `npm run test:visual -- -u` in a reviewed commit (Playwright's
+  own update flag — `--update` is not one it accepts).
 - Every animation id in the manifest is exercised by a renderer unit test that steps
   its frame sequence (play order + loop/hold behaviour).
 

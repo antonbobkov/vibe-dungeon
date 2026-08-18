@@ -63,6 +63,8 @@ const PAUSE_KEYS = new Set(['Escape', 'KeyP']);
 /** What is physically down, and what has been down at any point since the last tick. */
 let held = 0;
 let latched = 0;
+/** Set by the test hook: the loop keeps drawing but stops advancing time. */
+let frozen = false;
 
 /**
  * One tick's input latch. A tap shorter than a frame — which is what a synthetic key press
@@ -115,15 +117,26 @@ async function boot(): Promise<void> {
     event.preventDefault();
   });
 
-  // The hook the e2e drives the game with; harmless in a shipped build, and the only way to
-  // run a whole floor through the real loop without a human at the keyboard.
+  // The hook the tests drive the game with; harmless in a shipped build, and the only way to
+  // run a whole floor through the real loop without a human at the keyboard. `freeze` and
+  // `advance` are what make a screenshot golden reproducible: they put the game on an exact
+  // tick instead of whichever one the display happened to land on.
   (window as unknown as { undervault: unknown }).undervault = {
     state: () => app.state(),
     start: () => {
       app.start();
     },
+    toTitle: () => {
+      app.toTitle();
+    },
     injectReplay: (inputs: string, floorIndex = 0) => {
       app.injectReplay(inputs, floorIndex);
+    },
+    freeze: (value = true) => {
+      frozen = value;
+    },
+    advance: (ticks: number) => {
+      for (let i = 0; i < ticks; i++) app.tick(takeInput());
     },
   };
 
@@ -133,6 +146,13 @@ async function boot(): Promise<void> {
   const frame = (now: number): void => {
     accumulator += now - previous;
     previous = now;
+
+    if (frozen) {
+      accumulator = 0;
+      app.draw(ctx);
+      requestAnimationFrame(frame);
+      return;
+    }
 
     if (app.replaying) {
       for (let i = 0; i < REPLAY_TICKS_PER_FRAME && app.replaying; i++) app.tick(0);

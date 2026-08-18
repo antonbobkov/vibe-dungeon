@@ -94,16 +94,27 @@ silently. Fixture files with each violation class keep the linter itself tested.
 ## 5. E2E and visual
 
 Playwright drives the real browser build with `PLACEHOLDER_ART=1` (deterministic
-synthesized tiles — CI has no art, by repo policy). Beyond the M6 list (boot, start,
-replay-injection floor completion, pause), e2e asserts: canvas is the only focusable
-surface, no console errors/warnings on a full f1 run, integer scaling at 3 window sizes
-(canvas CSS size is an exact multiple of 320×208).
+synthesized tiles — CI has no art, by repo policy). The M6 list is
+`tests/e2e/play.spec.ts`: boots to the title, ATTACK starts floor 1, the f1 solution tape
+injected through the real loop finishes the floor with the HUD reading F2, pause covers
+and uncovers the game, no console errors or warnings anywhere. `boot.spec.ts` keeps the
+integer-scaling assertion (canvas CSS size is an exact multiple of 320×208 at 3 window
+sizes) and one room-drawn-correctly check.
 
-Visual goldens (local only): title screen and F1R1 first frame with real art. Goldens
-are stored as SHA-256 of the PNG bytes (text, committable) plus the PNG under
-`asset_reference/goldens/` (gitignored, regenerable). Update path:
-`npm run test:visual -- --update` and commit the new hashes with a note of what
-legitimately changed.
+Text on the canvas is asserted through the font table (`glyphRows`) rather than against a
+screenshot, so a failure says which glyph is wrong. The game exposes `window.undervault`
+for this — `state()`, `start()`, `toTitle()`, `injectReplay()`, and the `freeze()` /
+`advance()` pair that puts it on an exact tick.
+
+Visual goldens (local only, `npm run test:visual`, its own config and port): title screen
+and F1R1 first frame with real art, each put on an exact tick first — a shot of "whenever
+the display got there" would flicker with the title blink and every idle loop. Goldens are
+stored as SHA-256 of the PNG bytes in `tests/visual/goldens.json` (text, committable)
+beside the Chromium build they were recorded with, plus the PNG under
+`asset_reference/goldens/` (gitignored, regenerable) so a failure can be looked at. The
+suite skips itself wherever `art_assets/` is absent, CI included. Update path:
+`npm run test:visual -- -u`, committing the new hashes with a note of what legitimately
+changed.
 
 ## 6. Performance
 

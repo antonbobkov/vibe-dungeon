@@ -204,7 +204,8 @@ export class App {
     return byte;
   }
 
-  private toTitle(): void {
+  /** Back to a fresh title screen at tick zero — 04-ui §3.3's "full state reset". */
+  toTitle(): void {
     this.screen = 'title';
     this.sim = null;
     this.screenTick = 0;
