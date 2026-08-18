@@ -11,6 +11,8 @@
  */
 
 import type { Atlas } from './assets/loader.js';
+import { detect, snapshot, type GameEvent } from './game/events.js';
+import { Effects } from './render/effects.js';
 import { drawHud } from './render/hud.js';
 import {
   TITLE_FADE_TICKS,
@@ -65,6 +67,10 @@ export class App {
   private previous = 0;
   /** Ticks since the sim reported victory, for 04-ui §3.3's hold-then-fade. */
   private victoryTick = -1;
+  /** The flourishes of 02 §4 that outlive the state that caused them. */
+  private readonly effects = new Effects();
+  /** What the last tick did, for whoever wants to hear about it. */
+  private lastEvents: GameEvent[] = [];
 
   constructor(
     private readonly floors: LoadedFloor[],
@@ -95,6 +101,11 @@ export class App {
     };
   }
 
+  /** Everything the last tick did — the shell hands it to audio (04-ui §5). */
+  get events(): readonly GameEvent[] {
+    return this.lastEvents;
+  }
+
   /** Begin a run at the top of floor 1, with no title fade — the tests' way in. */
   start(): void {
     this.sim = new Sim(this.floors);
@@ -102,6 +113,8 @@ export class App {
     this.screenTick = 0;
     this.victoryTick = -1;
     this.fade = null;
+    this.effects.clear();
+    this.lastEvents = [];
   }
 
   /**
@@ -118,6 +131,8 @@ export class App {
     this.screenTick = 0;
     this.victoryTick = -1;
     this.fade = null;
+    this.effects.clear();
+    this.lastEvents = [];
     this.tape = { bytes, index: 0 };
   }
 
@@ -141,6 +156,8 @@ export class App {
     const pressed = held & ~this.previous;
     this.previous = held;
     this.screenTick++;
+    this.lastEvents = [];
+    this.effects.advance();
 
     if (this.fade) {
       this.fade.ticksLeft--;
@@ -188,7 +205,16 @@ export class App {
           return;
         }
 
+        const before = snapshot(sim);
         sim.tick(this.nextInput(held));
+        const after = snapshot(sim);
+
+        // A room is a clean slate: nothing that was floating over the last one follows.
+        if (after.roomIndex !== before.roomIndex || after.floorIndex !== before.floorIndex) {
+          this.effects.clear();
+        }
+        this.lastEvents = detect(before, after);
+        this.effects.spawn(this.lastEvents);
         if (sim.victory) this.victoryTick = 0;
         return;
       }
@@ -211,6 +237,8 @@ export class App {
     this.screenTick = 0;
     this.victoryTick = -1;
     this.tape = null;
+    this.effects.clear();
+    this.lastEvents = [];
   }
 
   // --- drawing --------------------------------------------------------------
@@ -240,7 +268,7 @@ export class App {
 
     if (this.debug) drawDebug(ctx, sim);
     else {
-      drawWorld(ctx, this.atlas, sim);
+      drawWorld(ctx, this.atlas, sim, this.effects.live);
       drawHud(ctx, this.atlas, {
         hp: sim.player.hp,
         inventory: sim.inventory,

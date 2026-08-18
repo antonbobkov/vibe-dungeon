@@ -23,6 +23,10 @@ export const VICTORY_FADE_TICKS = 60;
 /** The whole coin economy (03 §6), which the victory screen reports the run against. */
 export const TREASURE_TOTAL = 83;
 
+/** 04-ui §3.1's blink: the prompt is on for the first 30 ticks of every 60. */
+export const promptVisible = (tick: number): boolean =>
+  Math.floor(tick / TITLE_BLINK_TICKS) % 2 === 0;
+
 const TITLE_TEXT = 'UNDERVAULT';
 const TITLE_PROMPT = 'PRESS X TO BEGIN';
 const TITLE_CONTROLS = 'ARROWS OR WASD TO MOVE   X SWING   Z USE';
@@ -62,7 +66,7 @@ export function drawTitle(ctx: CanvasRenderingContext2D, atlas: Atlas, tick: num
   ctx.drawImage(frame.image, 124, 92);
   ctx.drawImage(frame.image, 180, 92);
 
-  if (Math.floor(tick / TITLE_BLINK_TICKS) % 2 === 0) {
+  if (promptVisible(tick)) {
     drawText(ctx, TITLE_PROMPT, centredX(TITLE_PROMPT, VIEW_W), 150, PALETTE.steel);
   }
   drawText(ctx, TITLE_CONTROLS, centredX(TITLE_CONTROLS, VIEW_W), 172, PALETTE.steelDark);

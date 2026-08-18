@@ -246,6 +246,12 @@ export class Sim {
   deadly: Cell[] = [];
   /** Triggers raised this tick, for the wiring phase to read (03 §1.6). */
   openedChests: Cell[] = [];
+  /**
+   * Locked doors the player leant on this tick without the key. Nothing in the sim reads it —
+   * it exists so the presentation layer can sound 04-ui §5's "locked" without re-deriving
+   * 01 §8.1's contact rule. Not hashed: it changes nothing that plays.
+   */
+  lockedBumps: string[] = [];
   litGroups: string[] = [];
   clearedRooms: string[] = [];
   /** Spawn cursors counting down on their tiles (02 §2.3). */
@@ -367,6 +373,7 @@ export class Sim {
     this.openedChests = [];
     this.litGroups = [];
     this.clearedRooms = [];
+    this.lockedBumps = [];
 
     // 5. Projectile updates, ascending spawn order (02 §3.2).
     this.updateBolts();
@@ -1057,6 +1064,10 @@ export class Sim {
   /**
    * Locked doors open on INTERACT at the §4.3 target tile, or by walking against them, and
    * a silver door consumes a key (01 §8.1).
+   *
+   * The key check comes *after* the contact test rather than before it, so that a door met
+   * without its key can be recorded in `lockedBumps` — the presentation layer's cue for
+   * 04-ui §5's "locked" (M7). Which doors open, and when, is unchanged.
    */
   private unlockDoors(): void {
     const interacting = pressed(this.input, this.prevInput, INTERACT);
@@ -1070,8 +1081,6 @@ export class Sim {
     for (const door of this.doorsHere()) {
       if (this.isOpen(door)) continue;
       if (door.type !== 'silver' && door.type !== 'gold') continue;
-      if (door.type === 'silver' && this.inventory.silverKeys < 1) continue;
-      if (door.type === 'gold' && !this.inventory.goldKey) continue;
 
       const cells = this.cellsHere(door);
       const pushing = cells.some(([col, row]) => {
@@ -1087,6 +1096,13 @@ export class Sim {
       const interacted =
         target !== null && cells.some(([c, r]) => c === target[0] && r === target[1]);
       if (!pushing && !interacted) continue;
+
+      const keyed =
+        door.type === 'silver' ? this.inventory.silverKeys >= 1 : this.inventory.goldKey;
+      if (!keyed) {
+        this.lockedBumps.push(door.id);
+        continue;
+      }
 
       if (door.type === 'silver') this.inventory.silverKeys--;
       this.openDoor(door);

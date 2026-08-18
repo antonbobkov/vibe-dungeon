@@ -36,6 +36,7 @@ import { PropState } from '../sim/prop.js';
 import { TileClass, setTile, tileAt, type Room } from '../sim/room.js';
 import type { Sim } from '../sim/sim.js';
 import { autotileRoom, tileRefAt, type TileRef } from './autotile.js';
+import { FLOAT_RISE_PX, PIT_DROP_PX, type Effect } from './effects.js';
 import { frameIndex } from './anim.js';
 import { roomOrigin, type Origin } from './layout.js';
 import { PALETTE } from './palette.js';
@@ -57,6 +58,8 @@ const SHAKE: readonly number[] = [2, -2, 2, -1, 1, -1];
 const ARC_RADIUS = 14;
 const ARC_HALF_SWEEP = 50;
 const ARC_THICKNESS = 2;
+/** The band is plotted every 2°, which at radius 14 leaves no gaps between pixels. */
+const ARC_STEP_DEGREES = 2;
 
 const FACING_ANGLE: Readonly<Record<Facing, number>> = {
   [Facing.R]: 0,
@@ -150,11 +153,8 @@ function drawDoorLeaves(
     const [col, row] = key.split(',').map(Number) as [number, number];
     if (tileAt(tiles, col, row) !== TileClass.DOOR_OPEN) continue;
 
-    const partnerRight = def.doorCells.get(`${col + 1},${row}`)?.doorId === owner.doorId;
-    const partnerLeft = def.doorCells.get(`${col - 1},${row}`)?.doorId === owner.doorId;
-    const side = partnerRight ? 'left' : partnerLeft ? 'right' : 'center';
-
-    const top = row === 0 ? row : row - 1;
+    const side = doorLeafSide(def, col, row);
+    const top = leafTopRow(row);
     blit(ctx, atlas.tile(`door_leaf_${side}_top`), origin.ox + col * TILE, origin.oy + top * TILE);
     blit(
       ctx,
@@ -164,6 +164,26 @@ function drawDoorLeaves(
     );
   }
 }
+
+/**
+ * Which leaf a door cell shows (AG §3.2): the half of a pair whose partner is to its right
+ * hangs on the left jamb, the other on the right, and a single steel door folds its one leaf
+ * back through the middle.
+ */
+export function doorLeafSide(
+  def: LoadedRoom,
+  col: number,
+  row: number,
+): 'left' | 'right' | 'center' {
+  const owner = def.doorCells.get(`${col},${row}`);
+  if (!owner) return 'center';
+  if (def.doorCells.get(`${col + 1},${row}`)?.doorId === owner.doorId) return 'left';
+  if (def.doorCells.get(`${col - 1},${row}`)?.doorId === owner.doorId) return 'right';
+  return 'center';
+}
+
+/** A leaf is two tiles tall and hangs into the room, so a bottom-wall door draws upward. */
+export const leafTopRow = (row: number): number => (row === 0 ? row : row - 1);
 
 /** Wall torches and banners (`t`, `w` in the 03 §1.2 legend) and the rooms' decor tiles. */
 function drawWallDressing(
@@ -197,6 +217,7 @@ export function drawRoom(
   atlas: Atlas,
   sim: Sim,
   origin: Origin,
+  effects: readonly Effect[] = [],
 ): void {
   const def = sim.roomDef;
   const tick = sim.playTick;
@@ -259,7 +280,65 @@ export function drawRoom(
   for (const bolt of sim.bolts) {
     blit(ctx, atlas.frame('bolt', 0), origin.ox + bolt.x / SUBPX, origin.oy + bolt.y / SUBPX);
   }
+
+  drawEffects(ctx, atlas, effects, origin);
 }
+
+/**
+ * The three flourishes of 02 §4, over everything else in the room. Pack A has no smoke
+ * sprite, so the torch puff is drawn from palette pixels; the other two reuse the art the
+ * things themselves are drawn with.
+ */
+function drawEffects(
+  ctx: CanvasRenderingContext2D,
+  atlas: Atlas,
+  effects: readonly Effect[],
+  origin: Origin,
+): void {
+  for (const effect of effects) {
+    if (effect.elapsed < 0) continue; // still waiting its turn in the stagger
+    const [x, y] = tilePos(origin, effect.at);
+    const done = effect.elapsed / effect.total;
+
+    switch (effect.kind) {
+      case 'float': {
+        const spec = pickupSprite(effect.pickup!, effect.elapsed);
+        const fade = Math.min(1, (1 - done) * 3); // holds, then goes out over the last third
+        blit(
+          ctx,
+          atlas.frame(spec.anim!, spec.frame),
+          x,
+          y - Math.round(FLOAT_RISE_PX * done),
+          false,
+          fade,
+        );
+        break;
+      }
+
+      case 'pit_drop':
+        // The tile underneath is already the bridged crate; this is the one that fell,
+        // settling into it and fading against the pit's void.
+        blit(ctx, atlas.tile('crate_push'), x, y + Math.round(PIT_DROP_PX * done), false, 1 - done);
+        break;
+
+      case 'puff': {
+        ctx.fillStyle = PALETTE.steelDark;
+        const rise = Math.round(4 * done);
+        for (const [dx, dy] of PUFF_PIXELS) {
+          ctx.fillRect(x + dx, y + dy - rise, 2, 2);
+        }
+        break;
+      }
+    }
+  }
+}
+
+/** Three specks, spread across the tile, that drift up together (02 §4.3's smoke puff). */
+const PUFF_PIXELS: readonly [number, number][] = [
+  [5, 6],
+  [9, 4],
+  [7, 9],
+];
 
 /** A pushed crate is between two tiles for the twelve ticks of its slide (02 §4.2). */
 function slidePosition(
@@ -279,46 +358,64 @@ function slidePosition(
   ];
 }
 
+export interface ArcPixel {
+  x: number;
+  y: number;
+  /** The leading edge is a single pixel of white; the rest of the band is steel. */
+  leading: boolean;
+}
+
 /**
  * The swing's arc (01 §4.2): a 2 px band of radius 14 sweeping from −50° to +50° around the
- * facing across the active window, its leading edge a pixel of white. Drawn as whole pixels
- * rather than a stroked path — the game is pixel art, and `ctx.arc` would antialias.
+ * facing across the active window, its leading edge a pixel of white. Whole pixels rather
+ * than a stroked path — the game is pixel art, and `ctx.arc` would antialias.
+ *
+ * Returned as a list so the geometry can be checked without a canvas: the band never leaves
+ * its radius, the sweep grows with the swing, and exactly one pixel is the leading edge.
  */
-function drawSwordArc(ctx: CanvasRenderingContext2D, sim: Sim, origin: Origin): void {
-  const player = sim.player;
-  if (!isSwingActive(player)) return;
+export function arcPixels(facing: Facing, swept: number, cx: number, cy: number): ArcPixel[] {
+  const from = FACING_ANGLE[facing] - ARC_HALF_SWEEP;
+  const to = from + 2 * ARC_HALF_SWEEP * Math.max(0, Math.min(1, swept));
 
-  const elapsed = SWING_TICKS - player.stateTimer;
-  const swept = (elapsed - SWING_ACTIVE_FIRST) / (SWING_ACTIVE_LAST - SWING_ACTIVE_FIRST);
-  const facing = FACING_ANGLE[player.facing];
-  const from = facing - ARC_HALF_SWEEP;
-  const to = from + 2 * ARC_HALF_SWEEP * swept;
-
-  const cx = origin.ox + player.x / SUBPX + TILE / 2;
-  const cy = origin.oy + player.y / SUBPX + TILE / 2;
-
-  ctx.fillStyle = PALETTE.steel;
-  for (let degrees = from; degrees <= to; degrees += 2) {
+  const pixels: ArcPixel[] = [];
+  for (let degrees = from; degrees <= to; degrees += ARC_STEP_DEGREES) {
     const radians = (degrees * Math.PI) / 180;
     for (let t = 0; t < ARC_THICKNESS; t++) {
       const r = ARC_RADIUS - t;
-      ctx.fillRect(
-        Math.round(cx + Math.cos(radians) * r),
-        Math.round(cy + Math.sin(radians) * r),
-        1,
-        1,
-      );
+      pixels.push({
+        x: Math.round(cx + Math.cos(radians) * r),
+        y: Math.round(cy + Math.sin(radians) * r),
+        leading: false,
+      });
     }
   }
 
   const lead = (to * Math.PI) / 180;
-  ctx.fillStyle = PALETTE.white;
-  ctx.fillRect(
-    Math.round(cx + Math.cos(lead) * ARC_RADIUS),
-    Math.round(cy + Math.sin(lead) * ARC_RADIUS),
-    1,
-    1,
-  );
+  pixels.push({
+    x: Math.round(cx + Math.cos(lead) * ARC_RADIUS),
+    y: Math.round(cy + Math.sin(lead) * ARC_RADIUS),
+    leading: true,
+  });
+  return pixels;
+}
+
+/** How far through its sweep a swing is, 0 at the first active tick and 1 at the last. */
+export function arcSweep(stateTimer: number): number {
+  const elapsed = SWING_TICKS - stateTimer;
+  return (elapsed - SWING_ACTIVE_FIRST) / (SWING_ACTIVE_LAST - SWING_ACTIVE_FIRST);
+}
+
+function drawSwordArc(ctx: CanvasRenderingContext2D, sim: Sim, origin: Origin): void {
+  const player = sim.player;
+  if (!isSwingActive(player)) return;
+
+  const cx = origin.ox + player.x / SUBPX + TILE / 2;
+  const cy = origin.oy + player.y / SUBPX + TILE / 2;
+
+  for (const pixel of arcPixels(player.facing, arcSweep(player.stateTimer), cx, cy)) {
+    ctx.fillStyle = pixel.leading ? PALETTE.white : PALETTE.steel;
+    ctx.fillRect(pixel.x, pixel.y, 1, 1);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -414,7 +511,12 @@ export function shakeOffset(iframeTimer: number): number {
  * The whole play area: the room, plus the room being slid in from during a transition, plus
  * the shake. The HUD and the screens are drawn over this by their own modules.
  */
-export function drawWorld(ctx: CanvasRenderingContext2D, atlas: Atlas, sim: Sim): void {
+export function drawWorld(
+  ctx: CanvasRenderingContext2D,
+  atlas: Atlas,
+  sim: Sim,
+  effects: readonly Effect[] = [],
+): void {
   ctx.fillStyle = CLEAR_COLOR;
   ctx.fillRect(0, HUD_H, VIEW_W, PLAY_H);
 
@@ -427,7 +529,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, atlas: Atlas, sim: Sim)
     const to = slideVector(script.dir, progress - 1);
 
     const here = roomOrigin(sim.roomDef);
-    drawRoom(ctx, atlas, sim, { ox: here.ox + from.dx, oy: here.oy + from.dy });
+    drawRoom(ctx, atlas, sim, { ox: here.ox + from.dx, oy: here.oy + from.dy }, effects);
 
     const next = sim.floor.rooms[script.toRoom]!;
     const there = roomOrigin(next);
@@ -436,11 +538,14 @@ export function drawWorld(ctx: CanvasRenderingContext2D, atlas: Atlas, sim: Sim)
   }
 
   const origin = roomOrigin(sim.roomDef);
-  drawRoom(ctx, atlas, sim, { ox: origin.ox + shake, oy: origin.oy });
+  drawRoom(ctx, atlas, sim, { ox: origin.ox + shake, oy: origin.oy }, effects);
 }
 
 /** Where a room sits at `progress` through a slide in `dir` (01 §8.2, linear). */
-function slideVector(dir: 'U' | 'D' | 'L' | 'R', progress: number): { dx: number; dy: number } {
+export function slideVector(
+  dir: 'U' | 'D' | 'L' | 'R',
+  progress: number,
+): { dx: number; dy: number } {
   switch (dir) {
     case 'U':
       return { dx: 0, dy: Math.round(PLAY_H * progress) };
