@@ -4,6 +4,10 @@ import { defineConfig } from 'vite';
 // server to serve them so the M6 asset loader can fetch real art locally.
 export default defineConfig({
   root: '.',
+  // TESTING.md §5: the e2e runs the real build with synthesized art, because CI has no
+  // packs. The loader reads this at boot; without it, it falls back on its own if the
+  // tileset is missing.
+  define: { __PLACEHOLDER_ART__: JSON.stringify(process.env['PLACEHOLDER_ART'] === '1') },
   build: { target: 'esnext', outDir: 'dist' },
   server: { fs: { allow: ['.', './art_assets'] } },
 });
