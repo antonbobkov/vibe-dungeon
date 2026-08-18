@@ -151,6 +151,40 @@ test('the f1 solution replay finishes the floor through the browser loop', async
   expect(problems).toEqual([]);
 });
 
+test('the full-game replay ends on the victory screen (04-ui §3.3)', async ({ page }) => {
+  const problems = watchConsole(page);
+  await page.goto('/');
+  await waitForBoot(page);
+
+  // M5's chained solution: 9875 ticks, all four floors, through this same loop.
+  const replay = await page.evaluate(async () => {
+    const response = await fetch('/tests/replay/fullgame.replay.json');
+    return (await response.json()) as { inputs: string };
+  });
+  await page.evaluate((inputs) => {
+    (
+      window as unknown as { undervault: { injectReplay(i: string): void } }
+    ).undervault.injectReplay(inputs);
+  }, replay.inputs);
+
+  await expect.poll(async () => (await state(page)).replaying, { timeout: 60_000 }).toBe(false);
+  // Then 04-ui §3.3's hold and fade before the screen itself.
+  await expect.poll(async () => (await state(page)).screen, { timeout: 20_000 }).toBe('victory');
+
+  const finished = await state(page);
+  expect(finished.floor).toBe(4);
+  expect(finished.treasure).toBe(81);
+
+  const at = await screen(page);
+  const heading = 'THE VAULT IS YOURS';
+  expect(readsAs(at, heading, centredX(heading, 320, 2), 56, PALETTE.gold, 2)).toBe(true);
+  expect(readsAs(at, 'TREASURE 81/83', centredX('TREASURE 81/83', 320), 140, PALETTE.steel)).toBe(
+    true,
+  );
+
+  expect(problems).toEqual([]);
+});
+
 test('pause covers the game and gives it back (01 §10, 04-ui §3.4)', async ({ page }) => {
   const problems = watchConsole(page);
   await page.goto('/');
