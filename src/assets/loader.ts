@@ -35,6 +35,8 @@ export interface Atlas {
   /** True when the art is synthesized rather than loaded. */
   readonly placeholder: boolean;
   tile(id: string, tint?: Tint): Sprite;
+  /** By tileset cell — what the auto-tiler and the levels' decor references speak (AG §2.1). */
+  cell(col: number, row: number, tint?: Tint): Sprite;
   frame(animId: string, index: number, tint?: Tint): Sprite;
 }
 
@@ -211,13 +213,15 @@ export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
   }
 
   const tiles = new Map<string, Variants>();
+  const cells = new Map<string, Variants>();
   const frames = new Map<string, Variants[]>();
 
   for (const def of TILES) {
-    tiles.set(
-      def.id,
-      bake(sheets ? sliceTile(sheets[def.sheet], def) : synthesize(def.id, 0, TILE, TILE)),
+    const variants = bake(
+      sheets ? sliceTile(sheets[def.sheet], def) : synthesize(def.id, 0, TILE, TILE),
     );
+    tiles.set(def.id, variants);
+    if (def.sheet === 'tileset') cells.set(`${def.col},${def.row}`, variants);
   }
 
   for (const def of ANIMS) {
@@ -237,6 +241,12 @@ export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
     tile(id, tint = 'none') {
       const variants = tiles.get(id);
       if (!variants) throw new Error(`atlas: no tile "${id}"`);
+      return spriteOf(variants, tint);
+    },
+
+    cell(col, row, tint = 'none') {
+      const variants = cells.get(`${col},${row}`);
+      if (!variants) throw new Error(`atlas: the manifest has no tile at (${col},${row})`);
       return spriteOf(variants, tint);
     },
 

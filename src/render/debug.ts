@@ -10,20 +10,12 @@
  */
 
 import { isSwingActive, swordRect } from '../sim/combat.js';
-import {
-  BOLT_BOX,
-  PLAYER_BOX,
-  SUBPX,
-  TILE,
-  TILE_SUBPX,
-  VIEW_W,
-  HUD_H,
-  PLAY_H,
-} from '../sim/constants.js';
+import { BOLT_BOX, PLAYER_BOX, SUBPX, TILE, TILE_SUBPX, VIEW_W, HUD_H } from '../sim/constants.js';
 import { EnemyState, boxOf, type SimEntity } from '../sim/enemy.js';
 import { PropState, type SimProp } from '../sim/prop.js';
 import { TileClass, tileAt } from '../sim/room.js';
 import type { Sim } from '../sim/sim.js';
+import { roomOrigin } from './layout.js';
 
 /** Flat colours, Pack A palette (AG §2.4) so the debug view is at least in key. */
 const COLORS: Record<TileClass, string> = {
@@ -51,14 +43,6 @@ const TELEGRAPH_COLOR = '#bc4c51';
 const LIT_COLOR = '#ffb347';
 const SLIDE_COLOR = '#c9a06a';
 const TEXT_COLOR = '#adc1cf';
-
-/** Rooms are centred in the play area, everything around them is void (03 §1.1). */
-export function roomOrigin(room: { w: number; h: number }): { ox: number; oy: number } {
-  return {
-    ox: Math.floor((VIEW_W - room.w * TILE) / 2),
-    oy: HUD_H + Math.floor((PLAY_H - room.h * TILE) / 2),
-  };
-}
 
 export function drawDebug(ctx: CanvasRenderingContext2D, sim: Sim): void {
   const room = sim.room;

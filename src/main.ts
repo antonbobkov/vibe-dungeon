@@ -6,7 +6,9 @@
  * HUD, screens and replay injection hook; the loop and the input mapping stay.
  */
 
+import { loadAtlas } from './assets/loader.js';
 import { drawDebug } from './render/debug.js';
+import { drawWorld } from './render/world.js';
 import { CLEAR_COLOR, TICK_RATE, VIEW_H, VIEW_W } from './sim/constants.js';
 import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from './sim/input.js';
 import { loadFloor, type FloorFile } from './sim/level.js';
@@ -88,6 +90,9 @@ async function boot(): Promise<void> {
     }),
   );
 
+  const atlas = await loadAtlas({ onFallback: (why) => console.info(`main: ${why}`) });
+  const debug = new URLSearchParams(location.search).has('debug');
+
   const sim = new Sim(floors);
   let previous = performance.now();
   let accumulator = 0;
@@ -106,7 +111,8 @@ async function boot(): Promise<void> {
 
     ctx.fillStyle = CLEAR_COLOR;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    drawDebug(ctx, sim);
+    if (debug) drawDebug(ctx, sim);
+    else drawWorld(ctx, atlas, sim);
 
     requestAnimationFrame(frame);
   };
