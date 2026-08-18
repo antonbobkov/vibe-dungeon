@@ -118,9 +118,17 @@ changed.
 
 ## 6. Performance
 
-`npm run bench`: run the fullgame replay headless, record per-tick sim time; p95 ≤ 2 ms
-on the CI runner (generous — the sim is one small room at a time). Renderer bench is
-local (M7). A regression fails CI, catching accidental O(n²) in overlap checks.
+`npm run bench`: runs the full-game replay headless and times every tick; p95 ≤ 2 ms on
+the CI runner (generous — the sim is one small room at a time). A regression fails CI,
+catching accidental O(n²) in overlap checks. On the machine this was written on the whole
+9875-tick game replays in about 40 ms: p50 0.004 ms a tick, p95 0.009 ms.
+
+The renderer bench is local, and rides with the visual goldens (`npm run test:visual`,
+skipped without `art_assets/`): it drives M5's floor-4 tape to the tick the Arena's third
+wave lands — the busiest frame in the game — and times one draw per animation frame, p95
+≤ 4 ms. Per *animation frame* deliberately: a tight loop of back-to-back draws measures
+Chromium's command-buffer flushes as much as it measures the renderer, and reads about ten
+times worse than a frame the game actually produces (measured: p50 0.3 ms, p95 0.4 ms).
 
 ## 7. What is intentionally not automated
 

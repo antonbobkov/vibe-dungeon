@@ -1,6 +1,6 @@
 name: CI
 
-# Every "runs in CI" row of TESTING.md §1. The bench step (M7) is added when its tool exists.
+# Every "runs in CI" row of TESTING.md §1.
 
 on:
   push:
@@ -28,6 +28,8 @@ jobs:
         run: npm test -- --coverage
       - name: Replay tests
         run: npm run test:replay
+      - name: Perf bench (sim only; the renderer bench needs the art, so it is local)
+        run: npm run bench
 
       # CI has no art_assets/ (repo policy), so the browser build runs in placeholder-art
       # mode — TESTING.md §5.

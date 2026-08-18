@@ -147,6 +147,23 @@ async function boot(): Promise<void> {
       frozen = value;
     },
     muted: () => audio.muted,
+    /**
+     * Time `frames` draws of the current state, in ms — the M7 renderer bench. One draw per
+     * animation frame, because that is how the game draws: a tight loop of back-to-back
+     * draws measures Chromium's command-buffer flushes as much as it measures the renderer.
+     */
+    bench: (frames: number): Promise<number[]> =>
+      new Promise((resolve) => {
+        const times: number[] = [];
+        const step = (): void => {
+          const started = performance.now();
+          app.draw(ctx);
+          times.push(performance.now() - started);
+          if (times.length < frames) requestAnimationFrame(step);
+          else resolve(times);
+        };
+        requestAnimationFrame(step);
+      }),
     advance: (ticks: number) => {
       for (let i = 0; i < ticks; i++) app.tick(takeInput());
     },

@@ -20,6 +20,7 @@
     "test:replay": "tsx tools/replay-test.ts",
     "sim": "tsx tools/sim-cli.ts",
     "test:e2e": "playwright test",
+    "bench": "vitest run --config vitest.bench.config.ts --reporter=verbose",
     "test:visual": "playwright test -c playwright.visual.config.ts"
   },
   "devDependencies": {
