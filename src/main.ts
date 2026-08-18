@@ -8,6 +8,7 @@
  */
 
 import { App } from './app.js';
+import { Audio } from './audio/synth.js';
 import { loadAtlas } from './assets/loader.js';
 import { CLEAR_COLOR, TICK_RATE, VIEW_H, VIEW_W } from './sim/constants.js';
 import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from './sim/input.js';
@@ -59,6 +60,7 @@ const BINDINGS: Record<string, number> = {
 };
 
 const PAUSE_KEYS = new Set(['Escape', 'KeyP']);
+const MUTE_KEY_CODE = 'KeyM';
 
 /** What is physically down, and what has been down at any point since the last tick. */
 let held = 0;
@@ -96,8 +98,17 @@ async function boot(): Promise<void> {
 
   const atlas = await loadAtlas({ onFallback: (why) => console.info(`main: ${why}`) });
   const app = new App(floors, atlas, new URLSearchParams(location.search).has('debug'));
+  const audio = new Audio();
 
   addEventListener('keydown', (event) => {
+    // 04-ui §5: audio starts on the first key, because a browser will not let it start
+    // before one, and `M` turns it off for good (remembered across runs).
+    audio.resume();
+    if (event.code === MUTE_KEY_CODE) {
+      audio.toggleMute();
+      event.preventDefault();
+      return;
+    }
     if (PAUSE_KEYS.has(event.code)) {
       app.togglePause();
       event.preventDefault();
@@ -135,6 +146,7 @@ async function boot(): Promise<void> {
     freeze: (value = true) => {
       frozen = value;
     },
+    muted: () => audio.muted,
     advance: (ticks: number) => {
       for (let i = 0; i < ticks; i++) app.tick(takeInput());
     },
@@ -161,6 +173,7 @@ async function boot(): Promise<void> {
       let ticks = 0;
       while (accumulator >= FRAME_MS && ticks < MAX_CATCH_UP) {
         app.tick(takeInput());
+        audio.playAll(app.events);
         accumulator -= FRAME_MS;
         ticks++;
       }

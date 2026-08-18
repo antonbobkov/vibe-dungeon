@@ -185,6 +185,67 @@ test('the full-game replay ends on the victory screen (04-ui §3.3)', async ({ p
   expect(problems).toEqual([]);
 });
 
+test('sounds its cues once the player has touched a key, and M silences them (04-ui §5)', async ({
+  page,
+}) => {
+  const problems = watchConsole(page);
+
+  // Count what the synth builds, without needing to hear anything.
+  await page.addInitScript(() => {
+    const counts = { oscillators: 0, noise: 0 };
+    (window as unknown as { audioNodes: typeof counts }).audioNodes = counts;
+    const Original = window.AudioContext;
+    class Counting extends Original {
+      override createOscillator(): OscillatorNode {
+        counts.oscillators++;
+        return super.createOscillator();
+      }
+      override createBufferSource(): AudioBufferSourceNode {
+        counts.noise++;
+        return super.createBufferSource();
+      }
+    }
+    window.AudioContext = Counting as unknown as typeof AudioContext;
+  });
+
+  await page.goto('/');
+  await waitForBoot(page);
+  const nodes = (): Promise<{ oscillators: number }> =>
+    page.evaluate(() => (window as unknown as { audioNodes: { oscillators: number } }).audioNodes);
+
+  expect((await nodes()).oscillators).toBe(0); // nothing before a gesture
+
+  await page.keyboard.press('KeyX'); // starts the run, and lets the browser start audio
+  await expect.poll(async () => (await state(page)).screen, { timeout: 10_000 }).toBe('playing');
+
+  // Walking north over f1 R1's coins: each one is a cue.
+  await page.keyboard.down('ArrowUp');
+  await expect
+    .poll(async () => (await state(page)).treasure, { timeout: 10_000 })
+    .toBeGreaterThan(0);
+  await page.keyboard.up('ArrowUp');
+  expect((await nodes()).oscillators).toBeGreaterThan(0);
+
+  // M mutes, and is remembered for the next run (04-ui §5).
+  await page.keyboard.press('KeyM');
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (window as unknown as { undervault: { muted(): boolean } }).undervault.muted(),
+      ),
+    )
+    .toBe(true);
+  await page.reload();
+  await waitForBoot(page);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { undervault: { muted(): boolean } }).undervault.muted(),
+    ),
+  ).toBe(true);
+
+  expect(problems).toEqual([]);
+});
+
 test('pause covers the game and gives it back (01 §10, 04-ui §3.4)', async ({ page }) => {
   const problems = watchConsole(page);
   await page.goto('/');

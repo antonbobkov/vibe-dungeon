@@ -34,7 +34,13 @@ export default tseslint.config(
   },
 
   {
-    files: ['src/render/**/*.ts', 'src/assets/loader.ts', 'src/app.ts', 'src/main.ts'],
+    files: [
+      'src/render/**/*.ts',
+      'src/audio/**/*.ts',
+      'src/assets/loader.ts',
+      'src/app.ts',
+      'src/main.ts',
+    ],
     languageOptions: { globals: { ...globals.browser } },
   },
 
