@@ -1,0 +1,32 @@
+# Softlock probe — f3 R2 "The Gap" (IMPLEMENTATION_PLAN M5).
+#
+# The trench crate is the only way north. Shove it somewhere useless, walk out, walk back in,
+# and the room still solves: a pushable crate that was not consumed is rebuilt where the map
+# put it on every entry (01 §9).
+
+floor f3
+room R2
+at 6,5
+start hp=6 treasure=0 deaths=0
+
+assert room=R2 treasure=0
+
+say Jam attempt: three shoves east, off the lane that reaches the trench
+goto 5,4
+push R 3
+
+say Out through the south door and straight back in
+door d1
+door d1
+assert room=R2 treasure=0
+
+say The crate is back on (6,4), and the trench takes it as it always did
+goto 6,5
+push U 2
+goto 6,3
+collect 4,1 3,1
+assert room=R2 treasure=2
+
+say And the way north is open
+door d2
+assert room=R3 treasure=2

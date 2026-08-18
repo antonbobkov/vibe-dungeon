@@ -1,0 +1,29 @@
+# Softlock probe — f3 R5 "Kiln Vault" (IMPLEMENTATION_PLAN M5).
+#
+# This crate *can* be jammed for good: pushed into the bottom-right corner it has a wall on
+# the two sides a shove would have to come from, and the silver key on its pit island is then
+# unreachable. Leaving the room and coming back rebuilds it on its map cell (01 §9), which is
+# what keeps the floor from softlocking.
+
+floor f3
+room R5
+at 5,6
+start hp=6 treasure=0 deaths=0
+
+assert room=R5 silverKeys=0
+
+say Jam: five shoves east and one south, into the corner nothing can reach
+push R 5
+goto 11,5
+push D 1
+
+say Out through d4 and back: the crate is rebuilt on (6,6)
+door d4
+door d4
+assert room=R5 silverKeys=0
+
+say Two shoves north — the second is swallowed by the pit, which stays bridged
+goto 6,7
+push U 2
+goto 6,3
+assert room=R5 silverKeys=1

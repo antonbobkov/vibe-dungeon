@@ -1,10 +1,12 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from '../../src/sim/input.js';
-import { MacroError, compileMacro, replayInputs } from '../../tools/macro.js';
+import { MacroError, compileMacro, replayInputs, type Replay } from '../../tools/macro.js';
 import { compileFile, formatReplay, replayPathFor } from '../../tools/macro-compile.js';
-import { runReplay } from '../../tools/run-replay.js';
+import { HASH_EVERY, runReplay } from '../../tools/run-replay.js';
 import { floors } from './helpers.js';
 
 const bytes = (text: string): number[] => [...replayInputs(compileMacro(`floor f1\n${text}`))];
@@ -97,9 +99,37 @@ describe('the committed f1-d1 replay', () => {
     expect(result.drifted, 'run npm run macro:compile').toBe(false);
   });
 
-  it('round-trips through the compiler unchanged', () => {
-    const replay = compileMacro(readFileSync(macroPath, 'utf8'));
-    expect(formatReplay(replay)).toBe(readFileSync(replayPathFor(macroPath), 'utf8'));
+  it('round-trips through the compiler, recording and all (05 §4)', () => {
+    const bare = compileMacro(readFileSync(macroPath, 'utf8'));
+    const committed = JSON.parse(readFileSync(replayPathFor(macroPath), 'utf8')) as Replay;
+
+    // The compiler itself never runs the sim, so it produces no hashes; the recording beside
+    // the macro is carried through a recompile, and belongs to exactly this tape.
+    expect(bare.hashes).toBeUndefined();
+    expect(committed.inputs).toBe(bare.inputs);
+    const hashes = committed.hashes!;
+    expect(hashes.every).toBe(HASH_EVERY);
+    expect(formatReplay({ ...bare, hashes })).toBe(readFileSync(replayPathFor(macroPath), 'utf8'));
+  });
+
+  it('drops a recording that no longer belongs to the tape', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'undervault-'));
+    const macro = join(dir, 'probe.macro');
+    writeFileSync(macro, 'floor f1\nR 4\n', 'utf8');
+
+    const recorded: Replay = {
+      ...compileMacro('floor f1\nR 4\n'),
+      hashes: { every: HASH_EVERY, values: [123] },
+    };
+    writeFileSync(replayPathFor(macro), formatReplay(recorded), 'utf8');
+    expect(compileFile(macro).drifted).toBe(false); // same inputs: the recording stands
+
+    writeFileSync(macro, 'floor f1\nR 5\n', 'utf8'); // one tick longer
+    const changed = compileFile(macro);
+    expect(changed.drifted).toBe(true);
+    expect((JSON.parse(changed.json) as Replay).hashes).toBeUndefined();
+
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it('runs headless with every assert holding', () => {

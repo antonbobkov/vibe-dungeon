@@ -48,12 +48,26 @@ inequalities. The non-obvious ones:
 1. Recompiles every `.macro` and fails on drift with the committed `.replay.json`.
 2. Runs each replay headless; every embedded assert must hold at its exact tick.
 3. Runs everything twice and compares full hash streams (determinism gate).
+4. Compares each run with the hash stream recorded in its `.replay.json` (05 §4) —
+   the sim still doing what it did the day the replay was authored, and the tick where
+   it stopped when it does not. Record with `npm run replay:record`; a recording is
+   carried through a recompile of unchanged macro text and dropped as soon as the
+   inputs change.
+5. Holds `fullgame.macro` to a plausible length (`FULLGAME_TICKS`, currently
+   8 000–60 000 ticks): a proof that the game can be finished is worth little if
+   "finishing" takes two hundred ticks.
 
 Required replays: `f1 f2 f3 f4` solution paths (asserts = the solution-path tables in
 03-levels), `fullgame` (chained, ends with `victory=true, treasure=81`), the M5
-softlock probes, and the M3/M4 scenario macros. When a gameplay constant changes,
-recompile; if asserts fail, the change was not behaviour-preserving — re-author the
-macro **in the same commit** or revert.
+softlock probes (`f3-r2-jam`, `f3-r5-jam`), and the M3/M4 scenario macros. When a
+gameplay constant changes, recompile; if asserts fail, the change was not
+behaviour-preserving — re-author the macro **in the same commit** or revert.
+
+The four solution macros and `fullgame` are generated from `.route` sources by
+`npm run route` (`tools/route.ts`), which plays a route against the real sim and records
+the input byte it chose each tick — see the M5 section of IMPLEMENTATION_PLAN. The route
+is the file to edit; the macro is the recording, and each floor's tape is byte-identical
+to its segment of the chained run.
 
 ### Authoring loop for agents
 

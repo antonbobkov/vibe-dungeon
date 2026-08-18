@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "replay:record": "tsx tools/replay-record.ts",
     "test:replay": "tsx tools/replay-test.ts",
     "sim": "tsx tools/sim-cli.ts",
     "test:e2e": "playwright test"

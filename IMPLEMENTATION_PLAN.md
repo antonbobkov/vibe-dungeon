@@ -22,7 +22,7 @@ src/render/     canvas renderer, animations, HUD, screens, font
 src/assets/     packA.ts tile/anim manifest; loader (real art + placeholder mode)
 src/main.ts     browser bootstrap
 levels/         f1.json … f4.json (transcribed from spec/03-levels.md)
-tools/          level-lint.ts, macro-compile.ts, sim-cli.ts
+tools/          level-lint.ts, macro-compile.ts, sim-cli.ts, route.ts
 tests/unit/     Vitest specs
 tests/replay/   *.macro sources + compiled *.replay.json
 tests/e2e/      Playwright specs
@@ -126,14 +126,23 @@ Done when unit tests prove:
 ### M5 — Content complete, solvable, verified
 
 Scope: author the four floor solution macros following 03-levels' solution-path tables
-(same asserts, same order); a chained full-game replay (title→f1→f2→f3→f4→victory) in
+(same asserts, same order); a chained full-game replay (f1→f2→f3→f4→victory) in
 the sim-cli; fix any level-data transcription bugs found; record final replay hashes.
+
+Authored with `npm run route` (`tools/route.ts`): a `.route` says what to do — `goto 5,3`,
+`light 2,2`, `clear`, `push U 2`, `door d3`, `ladder` — and the tool plays it against the
+real sim, choosing an input byte per tick and writing the `.macro` that ships. The gate
+still compiles that macro with the pure text→bytes compiler, so nothing about the
+authoring is trusted.
 
 Done when:
 - `npm run test:replay` runs f1–f4 solution replays and the chained full-game replay
   headless, all asserts green, `--verify` hash-stable across two runs.
-- Full-game replay reaches victory with `TREASURE 81` (03 §6) and duration between
-  15 000 and 60 000 play ticks.
+- Full-game replay reaches victory with `TREASURE 81` (03 §6) and a duration inside
+  `FULLGAME_TICKS` (`tools/replay-test.ts`). *Revised in M5:* the band was written as
+  15 000–60 000 ticks before anyone had played the game through; an efficient, honest
+  run of all 26 rooms takes 9 875 ticks (2 min 45 s), so the floor is 8 000 rather than
+  padding the tape with idle waits to reach a guessed number.
 - `npm run lint:levels` totals check matches 03 §6 (83 coins, key/lock parity).
 - Softlock probes: macros that jam the F3R2 and F3R5 crates, leave, re-enter, and
   still complete.

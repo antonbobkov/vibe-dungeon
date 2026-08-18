@@ -16,9 +16,15 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import { Sim } from '../src/sim/sim.js';
 import { compileMacro, type Replay } from './macro.js';
-import { FLOOR_IDS, loadFloors, runReplay, stateLine } from './run-replay.js';
-
-const HASH_EVERY = 60;
+import {
+  FLOOR_IDS,
+  HASH_EVERY,
+  hashSampleTick,
+  loadFloors,
+  runReplay,
+  sampleHashes,
+  stateLine,
+} from './run-replay.js';
 
 function flag(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
@@ -61,15 +67,18 @@ function main(): void {
     : (JSON.parse(readFileSync(replayPath!, 'utf8')) as Replay);
 
   const floors = loadFloors();
-  const run = runReplay(replay, floors, { dumpEvery, hashEvery: HASH_EVERY });
+  const run = runReplay(replay, floors, { dumpEvery, hashEvery: 1 });
   console.log(stateLine(run.sim));
 
   let failed = run.failures.length > 0;
   for (const failure of run.failures) console.error(`ASSERT ${failure}`);
 
+  // What a recording stores: every HASH_EVERY ticks, plus the final tick (`sampleHashes`).
+  const sampled = sampleHashes(run.hashes, HASH_EVERY);
+
   if (verify) {
     // Determinism gate: the same inputs must reproduce the same hash stream.
-    const again = runReplay(replay, floors, { hashEvery: HASH_EVERY, log: () => {} });
+    const again = runReplay(replay, floors, { hashEvery: 1, log: () => {} });
     if (JSON.stringify(again.hashes) !== JSON.stringify(run.hashes)) {
       console.error('VERIFY two runs of the same inputs produced different hash streams');
       failed = true;
@@ -81,25 +90,25 @@ function main(): void {
         );
         failed = true;
       } else {
-        const at = replay.hashes.values.findIndex((h, i) => h !== run.hashes[i]);
-        if (at >= 0 || replay.hashes.values.length !== run.hashes.length) {
+        const at = replay.hashes.values.findIndex((h, i) => h !== sampled[i]);
+        if (at >= 0 || replay.hashes.values.length !== sampled.length) {
           console.error(
             at >= 0
-              ? `VERIFY hash stream diverges from the stored one at tick ${(at + 1) * HASH_EVERY}`
+              ? `VERIFY hash stream diverges from the stored one at tick ${hashSampleTick(at, HASH_EVERY, run.hashes.length)}`
               : 'VERIFY hash stream is a different length than the stored one',
           );
           failed = true;
         }
       }
     }
-    if (!failed) console.log(`verify: ${run.hashes.length} sampled hashes match`);
+    if (!failed) console.log(`verify: ${sampled.length} sampled hashes match`);
   }
 
   if (record) {
     if (!replayPath) throw new Error('--record needs --replay (the file to write back)');
-    const updated: Replay = { ...replay, hashes: { every: HASH_EVERY, values: run.hashes } };
+    const updated: Replay = { ...replay, hashes: { every: HASH_EVERY, values: sampled } };
     writeFileSync(replayPath, `${JSON.stringify(updated, null, 2)}\n`, 'utf8');
-    console.log(`recorded ${run.hashes.length} hashes into ${replayPath}`);
+    console.log(`recorded ${sampled.length} hashes into ${replayPath}`);
   }
 
   console.log(

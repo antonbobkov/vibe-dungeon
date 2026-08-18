@@ -1,0 +1,50 @@
+{
+  "floor": "f3",
+  "room": "R5",
+  "at": [
+    5,
+    6
+  ],
+  "start": {
+    "hp": 6,
+    "treasure": 0,
+    "deaths": 0
+  },
+  "inputs": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBAQBAQEBAQEBAQEBAQEBCAgICAgICAgICAgICAgICAgICAgICAgICAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgQEBAQEBAQEBAQEBAICAgICAgICAgICAgIEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAgICAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAgICAgBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+  "asserts": [
+    {
+      "tick": 0,
+      "expect": {
+        "room": "R5",
+        "silverKeys": 0
+      }
+    },
+    {
+      "tick": 362,
+      "expect": {
+        "room": "R5",
+        "silverKeys": 0
+      }
+    },
+    {
+      "tick": 452,
+      "expect": {
+        "room": "R5",
+        "silverKeys": 1
+      }
+    }
+  ],
+  "hashes": {
+    "every": 60,
+    "values": [
+      3322211804,
+      3310504362,
+      3962296600,
+      2922798323,
+      1093586784,
+      1049003366,
+      1250182294,
+      411013055
+    ]
+  }
+}

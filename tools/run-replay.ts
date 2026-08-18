@@ -16,6 +16,32 @@ import { replayInputs, type Replay, type ReplayExpect } from './macro.js';
 
 export const FLOOR_IDS = ['f1', 'f2', 'f3', 'f4'] as const;
 
+/**
+ * How often a recorded hash stream samples the state hash (05 §4). Shared by the recorder,
+ * the replay gate and `sim-cli --verify`, which all have to agree on the sampling to compare
+ * a stream against a stored one.
+ */
+export const HASH_EVERY = 60;
+
+/**
+ * The samples a recording stores: the state hash every `every` ticks, and always the one at
+ * the final tick — otherwise a replay shorter than the interval (several of the scenario
+ * macros are) would record nothing at all. The sample at index *i* is the hash after tick
+ * `hashSampleTick(i, every, ticks)`.
+ */
+export function sampleHashes(perTick: readonly number[], every: number): number[] {
+  const values: number[] = [];
+  for (let tick = every; tick <= perTick.length; tick += every) values.push(perTick[tick - 1]!);
+  if (perTick.length > 0 && perTick.length % every !== 0) {
+    values.push(perTick[perTick.length - 1]!);
+  }
+  return values;
+}
+
+export function hashSampleTick(index: number, every: number, ticks: number): number {
+  return Math.min((index + 1) * every, ticks);
+}
+
 export function loadFloors(dir = 'levels'): LoadedFloor[] {
   return FLOOR_IDS.map((id) =>
     loadFloor(JSON.parse(readFileSync(join(dir, `${id}.json`), 'utf8')) as FloorFile),

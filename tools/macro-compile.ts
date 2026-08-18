@@ -30,7 +30,6 @@ export interface CompileResult {
 export function compileFile(macroPath: string): CompileResult {
   const replay = compileMacro(readFileSync(macroPath, 'utf8'));
   const replayPath = replayPathFor(macroPath);
-  const json = formatReplay(replay);
 
   let committed: string | null;
   try {
@@ -39,7 +38,24 @@ export function compileFile(macroPath: string): CompileResult {
     committed = null; // never compiled before
   }
 
+  // A recorded hash stream (05 §4) belongs to one exact tape. Carry it through a recompile of
+  // unchanged macro text — otherwise every recompile would report drift against the recording
+  // — and drop it the moment the inputs differ, so a stale stream can never outlive its run.
+  if (committed !== null) {
+    const previous = parse(committed);
+    if (previous?.hashes && previous.inputs === replay.inputs) replay.hashes = previous.hashes;
+  }
+
+  const json = formatReplay(replay);
   return { macro: macroPath, replayPath, json, drifted: committed !== json };
+}
+
+function parse(json: string): Replay | null {
+  try {
+    return JSON.parse(json) as Replay;
+  } catch {
+    return null;
+  }
 }
 
 function main(): void {
