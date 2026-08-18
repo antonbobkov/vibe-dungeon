@@ -1,18 +1,17 @@
 /**
- * Browser bootstrap.
+ * Browser bootstrap: the canvas, the keyboard, and the fixed-timestep loop.
  *
- * At M2 this runs the sim at a fixed timestep and draws the debug view, so the 26 rooms can
- * be walked and checked by eye. M6 replaces the renderer with real Pack A art and adds the
- * HUD, screens and replay injection hook; the loop and the input mapping stay.
+ * Everything about *what* is on screen belongs to `App` (04-ui §3's screens) and the render
+ * modules; this file owns only the wiring — the accumulator that keeps the sim at exactly
+ * 60 Hz however fast the display refreshes (00-overview determinism rule 1), the 01 §2 key
+ * bindings, and the integer scaling of AG §7.10.
  */
 
+import { App } from './app.js';
 import { loadAtlas } from './assets/loader.js';
-import { drawDebug } from './render/debug.js';
-import { drawWorld } from './render/world.js';
 import { CLEAR_COLOR, TICK_RATE, VIEW_H, VIEW_W } from './sim/constants.js';
 import { ATTACK, DOWN, INTERACT, LEFT, RIGHT, UP } from './sim/input.js';
 import { loadFloor, type FloorFile } from './sim/level.js';
-import { Sim } from './sim/sim.js';
 
 const element = document.getElementById('game');
 if (!(element instanceof HTMLCanvasElement)) {
@@ -59,27 +58,30 @@ const BINDINGS: Record<string, number> = {
   KeyE: INTERACT,
 };
 
+const PAUSE_KEYS = new Set(['Escape', 'KeyP']);
+
+/** What is physically down, and what has been down at any point since the last tick. */
 let held = 0;
+let latched = 0;
 
-addEventListener('keydown', (event) => {
-  const bit = BINDINGS[event.code];
-  if (bit === undefined) return;
-  held |= bit;
-  event.preventDefault();
-});
-
-addEventListener('keyup', (event) => {
-  const bit = BINDINGS[event.code];
-  if (bit === undefined) return;
-  held &= ~bit;
-  event.preventDefault();
-});
+/**
+ * One tick's input latch. A tap shorter than a frame — which is what a synthetic key press
+ * is, and what a fast human tap can be — would otherwise fall between two ticks and never be
+ * seen at all, so a press survives in `latched` until exactly one tick has consumed it.
+ */
+function takeInput(): number {
+  const input = latched;
+  latched = held;
+  return input;
+}
 
 // --- the fixed-timestep loop (00-overview §Determinism rule 1) --------------
 
 const FRAME_MS = 1000 / TICK_RATE;
 /** Never simulate more than this many ticks in one frame, so a stall cannot spiral. */
 const MAX_CATCH_UP = 5;
+/** A replay is not real time: drain it as fast as the browser will loop (TESTING.md §3). */
+const REPLAY_TICKS_PER_FRAME = 600;
 
 async function boot(): Promise<void> {
   const ids = ['f1', 'f2', 'f3', 'f4'] as const;
@@ -91,9 +93,40 @@ async function boot(): Promise<void> {
   );
 
   const atlas = await loadAtlas({ onFallback: (why) => console.info(`main: ${why}`) });
-  const debug = new URLSearchParams(location.search).has('debug');
+  const app = new App(floors, atlas, new URLSearchParams(location.search).has('debug'));
 
-  const sim = new Sim(floors);
+  addEventListener('keydown', (event) => {
+    if (PAUSE_KEYS.has(event.code)) {
+      app.togglePause();
+      event.preventDefault();
+      return;
+    }
+    const bit = BINDINGS[event.code];
+    if (bit === undefined) return;
+    held |= bit;
+    latched |= bit;
+    event.preventDefault();
+  });
+
+  addEventListener('keyup', (event) => {
+    const bit = BINDINGS[event.code];
+    if (bit === undefined) return;
+    held &= ~bit;
+    event.preventDefault();
+  });
+
+  // The hook the e2e drives the game with; harmless in a shipped build, and the only way to
+  // run a whole floor through the real loop without a human at the keyboard.
+  (window as unknown as { undervault: unknown }).undervault = {
+    state: () => app.state(),
+    start: () => {
+      app.start();
+    },
+    injectReplay: (inputs: string, floorIndex = 0) => {
+      app.injectReplay(inputs, floorIndex);
+    },
+  };
+
   let previous = performance.now();
   let accumulator = 0;
 
@@ -101,19 +134,20 @@ async function boot(): Promise<void> {
     accumulator += now - previous;
     previous = now;
 
-    let ticks = 0;
-    while (accumulator >= FRAME_MS && ticks < MAX_CATCH_UP) {
-      sim.tick(held);
-      accumulator -= FRAME_MS;
-      ticks++;
+    if (app.replaying) {
+      for (let i = 0; i < REPLAY_TICKS_PER_FRAME && app.replaying; i++) app.tick(0);
+      accumulator = 0;
+    } else {
+      let ticks = 0;
+      while (accumulator >= FRAME_MS && ticks < MAX_CATCH_UP) {
+        app.tick(takeInput());
+        accumulator -= FRAME_MS;
+        ticks++;
+      }
+      if (accumulator > FRAME_MS * MAX_CATCH_UP) accumulator = 0;
     }
-    if (accumulator > FRAME_MS * MAX_CATCH_UP) accumulator = 0;
 
-    ctx.fillStyle = CLEAR_COLOR;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    if (debug) drawDebug(ctx, sim);
-    else drawWorld(ctx, atlas, sim);
-
+    app.draw(ctx);
     requestAnimationFrame(frame);
   };
 

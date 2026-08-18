@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * M2 smoke test: the page boots, the fixed-timestep loop runs, the debug view draws the
- * room, and the keyboard drives the sim. The full gameplay e2e lands with the real renderer
- * in M6; the integer-scaling rule is asserted here per TESTING.md §5.
+ * The shell: the canvas is the right size at any window size (TESTING.md §5's integer-scaling
+ * rule), and a started run draws floor 1 room 1 in Pack A art — placeholder art in CI, whose
+ * colours are chosen per role so these assertions mean the same thing either way. The screens
+ * and the full playthrough are `play.spec.ts`.
  */
 
 /**
@@ -70,6 +71,11 @@ test('boots to a 320×208 canvas scaled by an integer factor', async ({ page }) 
 test('runs the sim and draws floor 1 room 1', async ({ page }) => {
   const problems = watchConsole(page);
   await page.goto('/');
+  await page.waitForFunction(() => 'undervault' in window, undefined, { timeout: 20_000 });
+  // Skip the title (04-ui §3.1); this test is about the room under it.
+  await page.evaluate(() =>
+    (window as unknown as { undervault: { start(): void } }).undervault.start(),
+  );
 
   // f1 R1 is 11×8, so it is centred at ox = (320 − 176)/2 = 72, oy = 16 + (192 − 128)/2 = 48.
   await expect.poll(async () => pixel(page, 72 + 8, 48 + 8), { timeout: 5000 }).toBe('#6e4a48'); // the room's top-left wall
@@ -77,7 +83,7 @@ test('runs the sim and draws floor 1 room 1', async ({ page }) => {
   expect(await pixel(page, 72 + 4 * 16 + 8, 48 + 8)).toBe('#bf704d'); // d1, still closed
   expect(await pixel(page, 4, 180)).toBe('#25131a'); // void outside the room
 
-  // The player starts on `@`(5,6); its feet box is drawn in steel.
+  // The player starts on `@`(5,6), drawn as the knight — steel, in the placeholder palette.
   expect(await pixel(page, 72 + 5 * 16 + 8, 48 + 6 * 16 + 12)).toBe('#adc1cf');
 
   // Walking north opens d1 (01 §8.1) — proof the loop, the input and the sim are all live.
