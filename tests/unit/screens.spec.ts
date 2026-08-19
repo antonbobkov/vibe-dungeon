@@ -94,11 +94,20 @@ function drewText(
   return true;
 }
 
+const stubSprite = (): Sprite => ({
+  image: {} as CanvasImageSource,
+  w: 16,
+  h: 16,
+  offX: 0,
+  offY: 0,
+});
+
 const stubAtlas: Atlas = {
   placeholder: true,
-  tile: (): Sprite => ({ image: {} as CanvasImageSource, w: 16, h: 16 }),
-  cell: (): Sprite => ({ image: {} as CanvasImageSource, w: 16, h: 16 }),
-  frame: (): Sprite => ({ image: {} as CanvasImageSource, w: 16, h: 16 }),
+  theme: 'a',
+  tile: stubSprite,
+  cell: stubSprite,
+  frame: stubSprite,
 };
 
 describe('the death screen (04-ui §3.2)', () => {

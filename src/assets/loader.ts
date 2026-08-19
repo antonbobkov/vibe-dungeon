@@ -18,9 +18,24 @@
  */
 
 import { ANIMS, ART_ROOT, TILES, type AnimDef, type TileDef } from './packA.js';
+import {
+  ANIM_OVERRIDES,
+  TILE_OVERRIDES,
+  THEME_B_SHEETS,
+  isStrip,
+  type AnimSource,
+  type CellSource,
+  type SheetB,
+} from './packB.js';
 import { PALETTE } from '../render/palette.js';
 import type { Tint } from '../render/sprites.js';
 import { TILE } from '../sim/constants.js';
+
+/**
+ * Which art the run draws. `a` is Pack A, the game's own theme; `b` re-skins whatever Pack B
+ * and Pack E have an equivalent for and leaves the rest on Pack A (see packB.ts).
+ */
+export type Theme = 'a' | 'b';
 
 /** Set by Vite's `define` from the `PLACEHOLDER_ART` env var; absent outside the browser build. */
 declare const __PLACEHOLDER_ART__: boolean | undefined;
@@ -29,11 +44,17 @@ export interface Sprite {
   image: CanvasImageSource;
   w: number;
   h: number;
+  /** Whole-pixel nudge for art that overshoots its tile — Pack E's 32×32 bodies, Pack B's
+   * 28 px torch. Zero for everything that fits its cell. */
+  offX: number;
+  offY: number;
 }
 
 export interface Atlas {
   /** True when the art is synthesized rather than loaded. */
   readonly placeholder: boolean;
+  /** The theme actually drawn, which is `a` whenever theme B's sheets were unavailable. */
+  readonly theme: Theme;
   tile(id: string, tint?: Tint): Sprite;
   /** By tileset cell — what the auto-tiler and the levels' decor references speak (AG §2.1). */
   cell(col: number, row: number, tint?: Tint): Sprite;
@@ -121,17 +142,51 @@ async function loadImage(path: string): Promise<HTMLImageElement> {
   return image;
 }
 
-function sliceTile(sheet: HTMLImageElement, def: TileDef): HTMLCanvasElement {
+/** One 16×16 cell of a sheet (AG §2.1: `pixel = col * 16, row * 16`). */
+function sliceCell(sheet: HTMLImageElement, col: number, row: number): HTMLCanvasElement {
   const canvas = makeCanvas(TILE, TILE);
-  context2d(canvas).drawImage(sheet, def.col * TILE, def.row * TILE, TILE, TILE, 0, 0, TILE, TILE);
+  context2d(canvas).drawImage(sheet, col * TILE, row * TILE, TILE, TILE, 0, 0, TILE, TILE);
   return canvas;
 }
+
+const sliceTile = (sheet: HTMLImageElement, def: TileDef): HTMLCanvasElement =>
+  sliceCell(sheet, def.col, def.row);
 
 function copyFrame(image: HTMLImageElement, def: AnimDef): HTMLCanvasElement {
   const [w, h] = def.frameSize ?? [TILE, TILE];
   const canvas = makeCanvas(w, h);
   context2d(canvas).drawImage(image, 0, 0);
   return canvas;
+}
+
+/** One frame out of a horizontal strip — how Pack B and Pack E ship animations. */
+function sliceStrip(
+  strip: HTMLImageElement,
+  index: number,
+  w: number,
+  h: number,
+): HTMLCanvasElement {
+  const canvas = makeCanvas(w, h);
+  context2d(canvas).drawImage(strip, index * w, 0, w, h, 0, 0, w, h);
+  return canvas;
+}
+
+/**
+ * Which strip frames stand in for an animation's frames. `pick` says so outright — for the
+ * spike ramp, where the mapping to 02 §3's dormant / telegraph / deadly window has to be
+ * exact — and otherwise they are spread evenly, so a longer strip still plays a whole cycle
+ * in the number of frames the manifest declares.
+ */
+export function stripFrames(wanted: number, available: number, pick?: readonly number[]): number[] {
+  if (pick) {
+    if (pick.length !== wanted) {
+      throw new Error(`theme: pick has ${pick.length} frames, the animation has ${wanted}`);
+    }
+    return [...pick];
+  }
+  return Array.from({ length: wanted }, (_, i) =>
+    Math.min(available - 1, Math.round((i * available) / wanted)),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -171,35 +226,68 @@ interface Variants {
   none: HTMLCanvasElement;
   white: HTMLCanvasElement;
   blue: HTMLCanvasElement;
+  offX: number;
+  offY: number;
 }
 
-const bake = (source: HTMLCanvasElement): Variants => ({
+const bake = (source: HTMLCanvasElement, offset: [number, number] = [0, 0]): Variants => ({
   none: source,
   white: retint(source, 'white'),
   blue: retint(source, 'blue'),
+  offX: offset[0],
+  offY: offset[1],
 });
 
 const spriteOf = (variants: Variants, tint: Tint): Sprite => {
   const image = variants[tint];
-  return { image, w: image.width, h: image.height };
+  return { image, w: image.width, h: image.height, offX: variants.offX, offY: variants.offY };
 };
 
 // ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------
 
+/**
+ * A themed animation, built to the *manifest's* frame count so every timing in the game is
+ * unchanged: a still repeated when the theme has only one image, otherwise `stripFrames`'
+ * choice of frames out of the strip.
+ */
+async function themedFrames(
+  def: AnimDef,
+  swap: AnimSource,
+  sheets: Record<string, HTMLImageElement | undefined>,
+): Promise<Variants[]> {
+  const wanted = def.frames.length;
+
+  if (!isStrip(swap)) {
+    const cell = swap as CellSource;
+    const still = sliceCell(sheets[cell.sheet]!, cell.col, cell.row);
+    return Array.from({ length: wanted }, () => bake(still));
+  }
+
+  const strip = await loadImage(swap.file);
+  const [w, h] = swap.frameSize ?? [TILE, TILE];
+  const indices = stripFrames(wanted, swap.frames, swap.pick);
+  return indices.map((index) => bake(sliceStrip(strip, index, w, h), swap.drawOffset ?? [0, 0]));
+}
+
 export interface LoadOptions {
   /** Force placeholder art; defaults to the build flag, then to whether the art is there. */
   placeholder?: boolean;
-  /** Told once, when real art was asked for and is not present. */
+  /** Which art to draw (see packB.ts). Defaults to Pack A. */
+  theme?: Theme;
+  /** Told once, when art that was asked for is not present. */
   onFallback?: (reason: string) => void;
 }
+
+type Sheets = Record<'tileset' | 'character', HTMLImageElement> &
+  Partial<Record<SheetB, HTMLImageElement>>;
 
 export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
   const flagged =
     options.placeholder ?? (typeof __PLACEHOLDER_ART__ !== 'undefined' && __PLACEHOLDER_ART__);
 
-  let sheets: { tileset: HTMLImageElement; character: HTMLImageElement } | null = null;
+  let sheets: Sheets | null = null;
   if (!flagged) {
     try {
       const [tileset, character] = await Promise.all([
@@ -212,13 +300,34 @@ export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
     }
   }
 
+  // Theme B re-skins what Pack B and Pack E cover and leaves the rest on Pack A. If its
+  // sheets are missing, the whole theme steps aside rather than the game half-loading.
+  let theme: Theme = sheets && options.theme === 'b' ? 'b' : 'a';
+  if (theme === 'b' && sheets) {
+    try {
+      const entries = Object.entries(THEME_B_SHEETS) as [SheetB, string][];
+      const loaded = await Promise.all(entries.map(async ([, path]) => loadImage(path)));
+      entries.forEach(([name], index) => {
+        sheets![name] = loaded[index]!;
+      });
+    } catch {
+      theme = 'a';
+      options.onFallback?.('theme b: Pack B is not in art_assets/ — drawing Pack A');
+    }
+  }
+
   const tiles = new Map<string, Variants>();
   const cells = new Map<string, Variants>();
   const frames = new Map<string, Variants[]>();
 
   for (const def of TILES) {
+    const swap = theme === 'b' ? TILE_OVERRIDES[def.id] : undefined;
     const variants = bake(
-      sheets ? sliceTile(sheets[def.sheet], def) : synthesize(def.id, 0, TILE, TILE),
+      !sheets
+        ? synthesize(def.id, 0, TILE, TILE)
+        : swap
+          ? sliceCell(sheets[swap.sheet]!, swap.col, swap.row)
+          : sliceTile(sheets[def.sheet], def),
     );
     tiles.set(def.id, variants);
     if (def.sheet === 'tileset') cells.set(`${def.col},${def.row}`, variants);
@@ -226,17 +335,24 @@ export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
 
   for (const def of ANIMS) {
     const [w, h] = def.frameSize ?? [TILE, TILE];
-    const baked = await Promise.all(
-      def.frames.map(async (file, index) => {
-        if (!sheets) return bake(synthesize(def.id, index, w, h));
-        return bake(copyFrame(await loadImage(`${def.dir}/${file}`), def));
-      }),
-    );
+    const swap = theme === 'b' ? ANIM_OVERRIDES[def.id] : undefined;
+
+    const baked =
+      sheets && swap
+        ? await themedFrames(def, swap, sheets)
+        : await Promise.all(
+            def.frames.map(async (file, index) => {
+              if (!sheets) return bake(synthesize(def.id, index, w, h));
+              return bake(copyFrame(await loadImage(`${def.dir}/${file}`), def));
+            }),
+          );
+
     frames.set(def.id, baked);
   }
 
   return {
     placeholder: sheets === null,
+    theme,
 
     tile(id, tint = 'none') {
       const variants = tiles.get(id);

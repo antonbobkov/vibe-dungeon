@@ -14,8 +14,14 @@ npm run dev          # http://localhost:5173
 ```
 
 **Controls**: arrows or WASD to move · `X`/`J` swing · `Z`/`K`/`E` use · `Escape`/`P` pause ·
-`M` mute. `?debug=1` on the URL swaps the art for the collision view — hitboxes, deadly trap
-windows, prop states and enemy state letters.
+`M` mute.
+
+Two URL flags: `?debug=1` swaps the art for the collision view — hitboxes, deadly trap
+windows, prop states and enemy state letters — and `?theme=b` draws the partial Pack B / Pack E
+re-skin described in [src/assets/packB.ts](src/assets/packB.ts). Theme B is experimental and
+deliberately incomplete: doors, the hero, the wisp, the flame and arrow traps, the puzzle
+torches and the crate-destruction animation have no equivalent in those packs and stay on
+Pack A, so a themed run mixes two palettes. Without the flag nothing changes.
 
 ## The art
 
