@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { DOOR_OPEN_RADIUS_PX, SUBPX } from '../../src/sim/constants.js';
-import { INTERACT, UP } from '../../src/sim/input.js';
+import { moveAxisSeparated } from '../../src/sim/collision.js';
+import { DOOR_OPEN_RADIUS_PX, ENEMY_STATS, SUBPX, TILE_SUBPX } from '../../src/sim/constants.js';
+import { boxOf, moverOf } from '../../src/sim/enemy.js';
+import { INTERACT, RIGHT, UP } from '../../src/sim/input.js';
 import { Facing } from '../../src/sim/player.js';
-import { TileClass, tileAt } from '../../src/sim/room.js';
+import { TileClass, parseRoom, setTile, tileAt, type Room } from '../../src/sim/room.js';
+import { Sim } from '../../src/sim/sim.js';
+import { boltBlocked } from '../../src/sim/trap.js';
 import { game, hold } from './helpers.js';
 
 // 01-mechanics §8.1.
@@ -116,7 +120,7 @@ describe('the gold door', () => {
   });
 });
 
-describe('puzzle doors and gaps', () => {
+describe('puzzle doors', () => {
   it('leaves a puzzle door shut however close the player stands (03 §1.6 opens it)', () => {
     // f2 d4 is the puzzle door in R4's top wall at (4,0)(5,0).
     const s = game({ floorIndex: 1, roomId: 'R4', start: { x: 4 * 256 + 128, y: 1 * 256 } });
@@ -124,11 +128,99 @@ describe('puzzle doors and gaps', () => {
     expect(tileAt(s.room, 4, 0)).toBe(TileClass.DOOR_CLOSED);
     expect(s.roomId).toBe('R4');
   });
+});
 
-  it('treats a side gap as open from the start (no door art exists for side walls)', () => {
-    const s = game({ roomId: 'R2' });
-    expect(tileAt(s.room, 12, 4)).toBe(TileClass.DOOR_OPEN);
-    expect(tileAt(s.room, 12, 5)).toBe(TileClass.DOOR_OPEN);
+/**
+ * 01 §8.1's side-wall doors. Where a side opening used to be a permanent gap it is now a
+ * `normal` door: shut on entry, solid to everything while it is, and swinging open on the
+ * same 24 px proximity rule a top-wall door uses.
+ */
+describe('side-wall doors', () => {
+  // f1 d5: R5's right wall (10,3)(10,4) ↔ R6's left wall (0,3)(0,4). R5 holds no enemies,
+  // so nothing walks into the measurement.
+  const atSideDoor = () => game({ roomId: 'R5', start: { x: 5 * TILE_SUBPX, y: 3 * TILE_SUBPX } });
+
+  it('starts closed, where a gap was always open', () => {
+    const s = atSideDoor();
+    expect(s.isDoorOpen('d5')).toBe(false);
+    expect(tileAt(s.room, 10, 3)).toBe(TileClass.DOOR_CLOSED);
+    expect(tileAt(s.room, 10, 4)).toBe(TileClass.DOOR_CLOSED);
+  });
+
+  it('opens on the same 24 px proximity rule as any normal door', () => {
+    // d5's centre is (2688, 1024) subpx; the player's hitbox centre is (x + 128, y + 192),
+    // so the 46th step right is the first inside the radius.
+    const radius = DOOR_OPEN_RADIUS_PX * SUBPX;
+    const s = atSideDoor();
+
+    hold(s, RIGHT, 45);
+    const dx = 2688 - (s.player.x + 128);
+    const dy = 1024 - (s.player.y + 192);
+    expect(dx * dx + dy * dy).toBeGreaterThan(radius * radius);
+    expect(s.isDoorOpen('d5')).toBe(false);
+
+    s.tick(RIGHT);
+    const dx2 = 2688 - (s.player.x + 128);
+    expect(dx2 * dx2 + dy * dy).toBeLessThanOrEqual(radius * radius);
+    expect(s.isDoorOpen('d5')).toBe(true);
+    expect(tileAt(s.room, 10, 3)).toBe(TileClass.DOOR_OPEN);
+    expect(tileAt(s.room, 10, 4)).toBe(TileClass.DOOR_OPEN);
+  });
+
+  it('carries the player through into the next room (01 §8.2)', () => {
+    const s = atSideDoor();
+    hold(s, RIGHT, 100);
+    expect(s.roomId).toBe('R6');
+    expect(s.player.facing).toBe(Facing.R);
+  });
+
+  /**
+   * While it is shut it is a `DOOR_CLOSED` cell like any other, which is the whole of its
+   * collision behaviour (01 §3.1). Held shut here by a room with no door table at all — the
+   * proximity rule would otherwise open a real one before anything could touch it.
+   */
+  const shutSideDoor = (): Room =>
+    parseRoom([
+      '#########',
+      '#.......#',
+      '#.......#',
+      '#.......D',
+      '#.......D',
+      '#.......#',
+      '#########',
+    ]);
+
+  it('stops the player at the wall line', () => {
+    const room = shutSideDoor();
+    const s = new Sim(room, { start: { x: 4 * TILE_SUBPX, y: 3 * TILE_SUBPX } });
+    hold(s, RIGHT, 60);
+    // Flush against column 8: 8*256 − (offX + w)*16 = 2048 − 208.
+    expect(s.player.x).toBe(1840);
+    expect(tileAt(s.room, 8, 3)).toBe(TileClass.DOOR_CLOSED);
+  });
+
+  it('stops the wisp, which flies over everything else in the room (02 §2.4)', () => {
+    const room = shutSideDoor();
+    let flown = { x: 6 * TILE_SUBPX, y: 3 * TILE_SUBPX };
+    for (let tick = 0; tick < 40; tick++) {
+      flown = moveAxisSeparated(
+        room,
+        boxOf('wisp'),
+        flown,
+        { x: ENEMY_STATS.wisp.speed, y: 0 },
+        moverOf('wisp'),
+      );
+    }
+    expect(flown.x).toBe(1840); // 2048 − (3 + 10)*16, the same wall line
+  });
+
+  it('stops a bolt, and lets one through once it is open (02 §3.2)', () => {
+    const room = shutSideDoor();
+    const bolt = { id: 0, x: 8 * TILE_SUBPX, y: 3 * TILE_SUBPX };
+    expect(boltBlocked(room, bolt)).toBe(true);
+
+    setTile(room, 8, 3, TileClass.DOOR_OPEN);
+    expect(boltBlocked(room, bolt)).toBe(false);
   });
 });
 

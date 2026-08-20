@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ENEMY_STATS } from '../../src/sim/constants.js';
+import { ENEMY_STATS, TILE_SUBPX } from '../../src/sim/constants.js';
 import { DOWN, LEFT, RIGHT, UP } from '../../src/sim/input.js';
 import {
   clearedFlag,
@@ -147,7 +147,13 @@ describe('persist per floor (01 §9)', () => {
   });
 
   it('never respawns enemies in a cleared combat_seal room (01 §8.3)', () => {
-    const s = game({ floorIndex: 2, roomId: 'R6' });
+    // Started well clear of all three, so 02 §2.1's spawn protection holds none of them
+    // back — this is about what a rebuild puts in the room, not about how it arrives.
+    const s = game({
+      floorIndex: 2,
+      roomId: 'R6',
+      start: { x: 5 * TILE_SUBPX, y: 6 * TILE_SUBPX },
+    });
     expect(s.entities).toHaveLength(3);
     s.persistence.set(clearedFlag('f3', 'R6'));
     s.enterRoom(s.roomIndex, s.player.x, s.player.y, s.player.facing);
@@ -156,7 +162,11 @@ describe('persist per floor (01 §9)', () => {
   });
 
   it('respawns enemies in an ordinary room every time', () => {
-    const s = game({ floorIndex: 2, roomId: 'R3' });
+    const s = game({
+      floorIndex: 2,
+      roomId: 'R3',
+      start: { x: 6 * TILE_SUBPX, y: 1 * TILE_SUBPX },
+    });
     expect(s.entities).toHaveLength(3);
     s.entities = [];
     s.enterRoom(s.roomIndex, s.player.x, s.player.y, s.player.facing);

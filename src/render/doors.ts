@@ -81,12 +81,13 @@ const LEAF_TILE: Readonly<Record<DoorSide, string>> = {
 export const leafY = (row: number): number =>
   row === 0 ? row * TILE + LEAF_PROTRUDE_PX : row * TILE - LEAF_PROTRUDE_PX;
 
-/** The open doors of a room, one leaf tile per door cell. */
+/** The open top/bottom-wall doors of a room, one leaf tile per door cell. */
 export function doorLeafDraws(def: LoadedRoom, tiles: Room): DoorTileDraw[] {
   const out: DoorTileDraw[] = [];
   for (const [key, owner] of def.doorCells) {
     if (owner.type === 'gap') continue; // side gaps have no door art at all (01 §8.1)
     const [col, row] = parseCell(key);
+    if (sideWallAt(def, col) !== null) continue; // side doors swing differently — below
     if (tileAt(tiles, col, row) !== TileClass.DOOR_OPEN) continue;
     out.push({
       tile: LEAF_TILE[doorCellSide(def, col, row)],
@@ -95,6 +96,114 @@ export function doorLeafDraws(def: LoadedRoom, tiles: Room): DoorTileDraw[] {
       flipX: false,
     });
   }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Side-wall doors (01 §8.1)
+// ---------------------------------------------------------------------------
+
+export type SideWall = 'left' | 'right';
+
+/** Which side wall a column is, or `null` for a column inside the room. */
+export function sideWallAt(def: LoadedRoom, col: number): SideWall | null {
+  if (col === 0) return 'left';
+  if (col === def.w - 1) return 'right';
+  return null;
+}
+
+/** A side-wall door as its art needs it: which wall, which column, and its two stacked cells. */
+export interface SideDoor {
+  doorId: string;
+  wall: SideWall;
+  col: number;
+  topRow: number;
+  bottomRow: number;
+}
+
+/**
+ * The side-wall doors with a foot in this room. Gaps are left out: an opening the level never
+ * closes has no leaf to draw in either state (01 §8.1).
+ */
+export function sideDoors(def: LoadedRoom): SideDoor[] {
+  const out: SideDoor[] = [];
+  for (const group of doorGroups(def)) {
+    if (group.type === 'gap') continue;
+    const col = group.cells[0]![0];
+    const wall = sideWallAt(def, col);
+    if (wall === null) continue;
+    const rows = group.cells.map(([, row]) => row);
+    out.push({
+      doorId: group.doorId,
+      wall,
+      col,
+      topRow: Math.min(...rows),
+      bottomRow: Math.max(...rows),
+    });
+  }
+  return out;
+}
+
+/**
+ * The edge-on leaf a **closed** side door shows, one tile over each of its two cells.
+ *
+ * A door seen from the side is a few pixels of board against the wall line, which is exactly
+ * what the *inset* halves of the leaf tiles are: `(8,4)/(8,5)` carry their art on x10–15, so
+ * they sit flush with a left wall's brick line, and `(7,4)/(7,5)` carry theirs on x0–5 for a
+ * right wall. The cells underneath autotile as the open passage either way, so this overlay
+ * is the whole difference between a shut side door and a gap.
+ */
+export const SIDE_SLIT_TILES: Readonly<Record<SideWall, readonly [string, string]>> = {
+  left: ['door_leaf_right_top', 'door_leaf_right_bottom'],
+  right: ['door_leaf_left_top', 'door_leaf_left_bottom'],
+};
+
+/**
+ * The two front-view halves an **open** side door stands folded back against the wall as —
+ * the same double-door tiles a top/bottom door is closed with, split across the cells above
+ * and below the opening.
+ */
+export const SIDE_LEAF_TOP_TILE = 'door_double_closed_left';
+export const SIDE_LEAF_BOTTOM_TILE = 'door_double_closed_right';
+
+/**
+ * A side door's art, closed or open (01 §8.1).
+ *
+ * Closed, it is the two edge-on slits over the opening itself. Open, the leaves cannot hang
+ * in the doorway — there is no room for them edge-on and nothing to hang them from — so they
+ * are anchored to the wall *beyond* the opening, in the room-side column (`1` at a left wall,
+ * `w−2` at a right one): the top half in the cell beside the wall above the opening, the
+ * bottom half beside the wall below it, mirrored so the pair reads as one door folded back.
+ * A right-wall door mirrors the whole arrangement, which flips both halves again.
+ */
+export function sideDoorDraws(def: LoadedRoom, tiles: Room): DoorTileDraw[] {
+  const out: DoorTileDraw[] = [];
+
+  for (const door of sideDoors(def)) {
+    const closed = tileAt(tiles, door.col, door.topRow) === TileClass.DOOR_CLOSED;
+    if (closed) {
+      const [top, bottom] = SIDE_SLIT_TILES[door.wall];
+      out.push({ tile: top, x: door.col * TILE, y: door.topRow * TILE, flipX: false });
+      out.push({ tile: bottom, x: door.col * TILE, y: door.bottomRow * TILE, flipX: false });
+      continue;
+    }
+
+    const mirrored = door.wall === 'right';
+    const x = (door.wall === 'left' ? 1 : def.w - 2) * TILE;
+    out.push({
+      tile: SIDE_LEAF_TOP_TILE,
+      x,
+      y: (door.topRow - 1) * TILE,
+      flipX: mirrored,
+    });
+    out.push({
+      tile: SIDE_LEAF_BOTTOM_TILE,
+      x,
+      y: (door.bottomRow + 1) * TILE,
+      flipX: !mirrored,
+    });
+  }
+
   return out;
 }
 
@@ -219,6 +328,11 @@ export const isChained = (type: DoorType, sealed: boolean): boolean => sealed ||
 /**
  * The cells wearing a chain right now. The renderer draws one shackle on each, and the event
  * layer watches this same list: a chain that stops being drawn is a chain that broke off.
+ *
+ * A **side** door in a sealed room is chained by the same rule and needs no special case: its
+ * cells are door cells like any other, so a shackle hangs centred on each of the two, over
+ * the edge-on slits. (A side door is never `puzzle`, so a seal is the only thing that chains
+ * one — lint, 03 §1.4.)
  */
 export function chainedCells(def: LoadedRoom, tiles: Room, sealed: boolean): Cell[] {
   const out: Cell[] = [];

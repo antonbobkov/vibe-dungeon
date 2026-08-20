@@ -117,7 +117,7 @@ code-drawn or spec-embedded pixel data — no external assets may be added:
 | HUD heart icons | 7×6 px bitmaps embedded in 04-ui §2.2, drawn in Pack A palette colours. |
 | Text font | 3×5 px bitmap font embedded in 04-ui §5. |
 | Audio (no audio assets exist at all) | Small WebAudio synth cue table in 04-ui §6. |
-| Side-wall door art (doors exist only front-facing) | Side exits between rooms are open 2-tile gaps, never doors. Lockable doors appear only in top/bottom walls. (03-levels §1.4.) |
+| Side-wall door art (doors exist only front-facing) | A side exit is a 2-tile opening that may carry a **vertical door**, drawn from the front-facing art seen edge-on: the inset halves of the leaf tiles as closed slits on the opening, the double-door halves folded back against the wall beside it when open. No keyhole or arch reads at that angle, so `silver`/`gold`/`puzzle` remain top/bottom-wall only. (01-mechanics §8.1, 03-levels §1.4.) |
 
 The mechanic set was chosen to fit the assets; nothing requires art that doesn't exist
 (e.g., there are no pressure plates, no pushable-block art distinct from crates, no
@@ -132,7 +132,8 @@ side-firing arrow traps — see 02-entities for what each trap can do and why).
 | room | One screen of play; a rectangular tile grid ≤ 20×12 |
 | floor | A set of connected rooms; floors 1–4 are the whole game |
 | door object | A logical connection between two rooms with a type (normal / silver / gold / puzzle) and open state |
-| gap | A 2-tile opening in a side wall connecting two rooms (typeless, always open) |
+| gap | A 2-tile opening in a side wall connecting two rooms, with no door object: always open |
+| vertical door | A `normal` door filling a 2-tile side-wall opening; drawn edge-on when shut (01-mechanics §8.1) |
 | seal | Temporary closing of all of a room's doors during combat (`combat_seal` rooms) |
 | pit | A void tile inside a room's floor; impassable until bridged by a pushed crate |
 | wiring | Level-data links from triggers (e.g., "all torches in group lit") to effects (e.g., "open door d4") |

@@ -25,7 +25,7 @@ division), `oy = 16 + (192 − H*16) / 2`. Everything outside the room is `#2513
 | `_` | pit (void in floor) | floor area | yes until bridged | render as void `(8,7)`; bridged: crate art `(9,4)` as floor |
 | `@` | player spawn (floor entry point) | floor | — | exactly one per floor, in room R1 |
 | `V` | descent ladder | top wall | wall | art `(9,3)`; trigger per 01 §8.4 |
-| `D` | door/gap cell, normal | top/bottom wall (with a second `D` beside it) or side wall (2 vertically) | until open | double door `(6,3)+(7,3)` when in top/bottom wall; side = open gap |
+| `D` | door/gap cell, normal | top/bottom wall (with a second `D` beside it) or side wall (2 vertically) | until open | double door `(6,3)+(7,3)` in a top/bottom wall; in a side wall, the edge-on slits of a vertical door (01 §8.1) over gap terrain, or a bare gap if the door table says `gap` |
 | `L` | silver-locked door | top/bottom wall, 1 cell | until unlocked | steel door `(8,3)` |
 | `P` | puzzle door | top/bottom wall, 2 cells `PP` | until wired open | arched door `(6,6)+(7,6)` |
 | `G` | gold-locked door | top/bottom wall, 2 cells `GG` | until unlocked | arched door `(6,6)+(7,6)` |
@@ -60,9 +60,11 @@ Perimeter walls follow the AG §3.2 room recipe with fixed variant formulas:
 | bottom wall | `(1 + (col mod 4), 4)` |
 | left / right wall | `(0, 1 + (row mod 3))` / `(5, 1 + (row mod 3))` |
 
-Side gaps: the wall cell directly **above** a side gap becomes the bottom-cap corner
-(`(0,4)` left wall / `(5,4)` right wall); the cell directly **below** it becomes the top
-corner (`(0,0)` / `(5,0)`). Interior free-standing `#` blocks: top row of the block =
+Side openings (a gap or a vertical door — the terrain is the same either way, 01 §8.1): the
+wall cell directly **above** the opening becomes the bottom-cap corner (`(0,4)` left wall /
+`(5,4)` right wall); the cell directly **below** it becomes the top corner (`(0,0)` /
+`(5,0)`); the two cells of the opening itself are void `(8,7)` in both the open and the
+closed state, with the door art drawn over them. Interior free-standing `#` blocks: top row of the block =
 coping `(1 + (col mod 4), 4)`; other rows = wall face, `(1,5)` for even cols, `(2,5)`
 for odd.
 
@@ -75,9 +77,13 @@ block. Otherwise use plain floor variant `v = (col*3 + row*5) mod 12`, tile
 ### 1.4 Doors
 
 Door objects are declared per floor (tables below) with two endpoints
-`room:(cells)` and a type (01 §8.1). Side gaps are two vertically adjacent `D` cells in
-a side wall and are always type *gap*. Locked/puzzle doors appear only in top/bottom
-walls. Endpoint cell coordinates in the door tables must match the map symbols (lint).
+`room:(cells)` and a type (01 §8.1). A side opening is two vertically adjacent `D` cells in
+a side wall; its door-table type is *normal* (a **vertical door**, which shuts and opens like
+any other) or *gap* (permanently open, no door object behaviour). `silver`, `gold` and
+`puzzle` appear only in top/bottom walls — lint rejects them in a side wall, because a side
+door is drawn edge-on and has nowhere to show a keyhole or an arch. Endpoint cell
+coordinates in the door tables must match the map symbols (lint); the `D` symbols are the
+same either way, so converting a gap to a vertical door is a door-table change only.
 
 ### 1.5 Room tables
 
@@ -105,11 +111,13 @@ All wiring is per-floor and fires at most once (persists, 01 §9).
 
 ### 1.7 Validation (level lint — see TESTING.md)
 
-Perimeter closed except declared doors/gaps; all symbols legal for their position; door
+Perimeter closed except declared doors/gaps; all symbols legal for their position; gaps only
+in side walls and side walls only `normal` or `gap` (§1.4); door
 endpoints match maps; every floor's silver keys = silver locks and every key is
 statically reachable before its lock (reachability over floor tiles, treating traps as
 passable, pits as passable iff the room contains a pushable crate); room sizes within
-bounds; `combat_seal` rooms have no side gaps and at least one wall door; coin/marker
+bounds; `combat_seal` rooms have no side gaps (a side *door* is allowed — it seals) and at
+least one wall door; coin/marker
 counts match the totals in §6; exactly one `@` on floor 1..4's first room; every floor
 has exactly one `V` except floor 4 (none — the game ends at the vault).
 
@@ -120,15 +128,15 @@ has exactly one `V` except floor 4 (none — the game ends at the vault).
 Teaches: movement, sword, coins, crates, chests, keys, locked doors, descent.
 Target first-run time: 3–4 minutes. Enemies: skeleton (sword) only.
 
-Connections: R1─d1─R2 · R2─d2(gap)─R3 · R2─d3(silver)─R4 · R4─d4─R5 · R5─d5(gap)─R6(ladder).
+Connections: R1─d1─R2 · R2─d2(vertical)─R3 · R2─d3(silver)─R4 · R4─d4─R5 · R5─d5(vertical)─R6(ladder).
 
 | Door | Type | Endpoint A | Endpoint B |
 |---|---|---|---|
 | d1 | normal | R1 top `(4,0)(5,0)` | R2 bottom `(4,8)(5,8)` |
-| d2 | gap | R2 east `(12,4)(12,5)` | R3 west `(0,3)(0,4)` |
+| d2 | normal (vertical) | R2 east `(12,4)(12,5)` | R3 west `(0,3)(0,4)` |
 | d3 | silver | R2 top `(6,0)` | R4 bottom `(5,8)` |
 | d4 | normal | R4 top `(4,0)(5,0)` | R5 bottom `(4,6)(5,6)` |
-| d5 | gap | R5 east `(10,3)(10,4)` | R6 west `(0,3)(0,4)` |
+| d5 | normal (vertical) | R5 east `(10,3)(10,4)` | R6 west `(0,3)(0,4)` |
 
 ### R1 "Entry Hall" — 11×8
 
@@ -235,11 +243,11 @@ Decor: `w`(5,0) is a banner (`flag/` anim) on the wall beside the ladder.
 |---|---|---|---|
 | 1 | R1 | collect 4 coins, exit north (d1) | room=R2, treasure=4 |
 | 2 | R2 | kill skeleton, break both crates, collect 2 coins | treasure=6 |
-| 3 | R2→R3 | east gap; kill skeleton; collect 4 coins (one in crate); open mini chest | treasure=10, silver keys=1 |
+| 3 | R2→R3 | east door; kill skeleton; collect 4 coins (one in crate); open mini chest | treasure=10, silver keys=1 |
 | 4 | R3→R2 | back; unlock d3 (key consumed), north | room=R4, silver keys=0 |
 | 5 | R4 | kill 2 skeletons; take flask+coin; exit north | room=R5, treasure=11 |
 | 6 | R5 | open chest (5 coins + flask), break crates (+1 coin) | treasure=17 |
-| 7 | R5→R6 | east gap; collect 3 coins; hold UP under ladder | floor=2, treasure=20 |
+| 7 | R5→R6 | east door; collect 3 coins; hold UP under ladder | floor=2, treasure=20 |
 
 ---
 
@@ -248,16 +256,16 @@ Decor: `w`(5,0) is a banner (`flag/` anim) on the wall beside the ladder.
 Teaches: spike timing, arrow lanes, torch puzzle. New enemies: zombie, skeleton (axe).
 Target: 4–5 minutes.
 
-Connections: R1─d1─R2 · R2─d2(gap)─R3 · R3─d3─R4 · R4─d4(puzzle)─R5 · R5─d5(gap)─R6 ·
+Connections: R1─d1─R2 · R2─d2(vertical)─R3 · R3─d3─R4 · R4─d4(puzzle)─R5 · R5─d5(vertical)─R6 ·
 R6─d6─R2 (shortcut back) · R2─d7(silver)─R7(ladder).
 
 | Door | Type | Endpoint A | Endpoint B |
 |---|---|---|---|
 | d1 | normal | R1 top `(3,0)(4,0)` | R2 bottom `(4,6)(5,6)` |
-| d2 | gap | R2 east `(14,3)(14,4)` | R3 west `(0,3)(0,4)` |
+| d2 | normal (vertical) | R2 east `(14,3)(14,4)` | R3 west `(0,3)(0,4)` |
 | d3 | normal | R3 top `(10,0)(11,0)` | R4 bottom `(4,8)(5,8)` |
 | d4 | puzzle | R4 top `(4,0)(5,0)` | R5 bottom `(5,6)(6,6)` |
-| d5 | gap | R5 west `(0,3)(0,4)` | R6 east `(10,4)(10,5)` |
+| d5 | normal (vertical) | R5 west `(0,3)(0,4)` | R6 east `(10,4)(10,5)` |
 | d6 | normal | R6 bottom `(4,8)(5,8)` | R2 top `(10,0)(11,0)` |
 | d7 | silver | R2 top `(3,0)` | R7 bottom `(3,5)` |
 
@@ -386,9 +394,9 @@ D...........#
 | # | Where | Action | Assert |
 |---|---|---|---|
 | 1 | R1→R2 | north; weave the anti-phased spike rows; +3 coins | room=R2, treasure=23 |
-| 2 | R2→R3 | east gap; collect 6 coins between volleys; exit north | room=R4, treasure=29 |
+| 2 | R2→R3 | east door; collect 6 coins between volleys; exit north | room=R4, treasure=29 |
 | 3 | R4 | kill/avoid zombies, light 4 torches, +2 coins; d4 opens; north | room=R5, treasure=31 |
-| 4 | R5 | kill axe skeleton (kite it — slow), take flask; west gap | room=R6 |
+| 4 | R5 | kill axe skeleton (kite it — slow), take flask; west door | room=R6 |
 | 5 | R6 | +4 coins; time the ring, grab key | silver keys=1, treasure=35 |
 | 6 | R6→R2 | south door d6 (shortcut back) | room=R2 |
 | 7 | R2→R7 | unlock d7; +3 coins; ladder | floor=3, treasure=38, silver keys=0 |
@@ -399,14 +407,14 @@ D...........#
 
 Teaches: flame jets, crate pushing / pit bridging. New enemy: wisp. Target: 4–5 minutes.
 
-R1─d1─R2; R2─d2─R3; R3─d3(gap)─R4; R4─d4─R5; R3─d5─R6 (sealed side room);
+R1─d1─R2; R2─d2─R3; R3─d3(vertical)─R4; R4─d4─R5; R3─d5─R6 (sealed side room);
 R3─d6(silver)─R7.
 
 | Door | Type | Endpoint A | Endpoint B |
 |---|---|---|---|
 | d1 | normal | R1 top `(5,0)(6,0)` | R2 bottom `(4,7)(5,7)` |
 | d2 | normal | R2 top `(6,0)(7,0)` | R3 bottom `(6,7)(7,7)` |
-| d3 | gap | R3 east `(12,3)(12,4)` | R4 west `(0,3)(0,4)` |
+| d3 | normal (vertical) | R3 east `(12,3)(12,4)` | R4 west `(0,3)(0,4)` |
 | d4 | normal | R4 top `(12,0)(13,0)` | R5 bottom `(5,8)(6,8)` |
 | d5 | normal | R6 bottom `(4,7)(5,7)` | R3 top `(8,0)(9,0)` |
 | d6 | silver | R3 top `(3,0)` | R7 bottom `(3,5)` |
@@ -467,7 +475,7 @@ cross, take the 2 coins, exit north. (Jammed crates reset on re-entry, 02 §4.2.
 |---|
 | `1`(2,2) wisp · `2`(10,2) wisp · `3`(6,5) zombie, drops: none |
 
-Hub room of the floor: south to R2, east gap to R4, north-right door to R6 (treasure),
+Hub room of the floor: south to R2, east door to R4, north-right door to R6 (treasure),
 north-left silver door to R7 (descent).
 
 ### R4 "Flame Walk" — 15×7. *Timing gauntlet.*
@@ -542,7 +550,7 @@ key, so any bridge works.
 |---|---|---|---|
 | 1 | R1 | +1 coin (time the flame), north | room=R2, treasure=39 |
 | 2 | R2 | push crate into trench, cross, +2 coins, north | room=R3, pit bridged, treasure=41 |
-| 3 | R3 | kill wisps/zombie (or run), +1 coin; east gap | room=R4 |
+| 3 | R3 | kill wisps/zombie (or run), +1 coin; east door | room=R4 |
 | 4 | R4 | run the gauntlet; +3 coins, +flask (optional); north | room=R5, treasure=45 |
 | 5 | R5 | push crate into a pit cell, grab key, +2 coins; south, back west | room=R3, silver keys=1, treasure=47 |
 | 6 | R3→R6 | north-right door; seal closes; clear 3 enemies; open chest; +2 floor coins | treasure=53, has blue flask large |

@@ -189,7 +189,8 @@ and HP persist across floors. Collected pickups never respawn (§9).
 
 Door objects connect two rooms; each endpoint occupies 1 cell (`L` steel single door,
 AG tile `(8,3)`) or 2 cells (`DD` straight-lintel double `(6,3)+(7,3)`; `PP`/`GG` arched
-double `(6,6)+(7,6)`) in a top or bottom wall. Types:
+double `(6,6)+(7,6)`) in a top or bottom wall, or 2 vertically stacked cells in a side wall
+(**vertical doors**, below). Types:
 
 | Type | Symbol | Opens when | Closed art |
 |---|---|---|---|
@@ -197,7 +198,13 @@ double `(6,6)+(7,6)`) in a top or bottom wall. Types:
 | silver-locked | `L` | player interacts (§4.3) or walks against it while `silver keys ≥ 1`; consumes 1 key; permanent | + a silver keyhole |
 | gold-locked | `GG` | same, requires the gold key; does not consume it; permanent | + a gold keyhole |
 | puzzle | `PP` | its wiring effect fires (03-levels §1.6); permanent | + chains, right cell mirrored (§8.3) |
-| **gap** | `D` in a side wall, 2 cells tall | always open (no door art exists for side walls) | — |
+| **gap** | `D` in a side wall, 2 cells tall | always open; no door object to open or seal | — |
+
+Side walls take **`normal` doors and gaps only**. A side door is seen edge-on, a few pixels
+of board against the wall line, with nowhere to put a keyhole or an arch, so `silver`, `gold`
+and `puzzle` stay in top/bottom walls (level lint rejects them in a side wall, 03-levels
+§1.4). The `gap` type remains available for an opening that is never meant to close. Every
+side opening in floors 1–3 is a `normal` door; floor 4 has none.
 
 Open/closed tile art per AG §3.2 ("Door open / closed states"). A closed/locked/sealed
 door cell is solid; an open door cell is walkable.
@@ -211,6 +218,22 @@ bottom-wall leaf at `y = row×16 − 4`. A double door hangs its left cell's lea
 the left jamb and its right cell's `(8,4)` on the right, so the 2-cell opening between them
 stays visually clear; a single `L` door hangs its one leaf `(7,4)`. Leaves do not vary by
 door type.
+
+**Vertical doors** (side walls): the two cells of the opening keep the terrain a gap has —
+the wall run capped above and below (03-levels §1.3), the passage itself showing through —
+and the door is drawn over the top of them.
+
+- *Closed*: one edge-on leaf slit per cell, taken from the inset halves of the leaf tiles so
+  the art lands flush against that wall's brick line. Left wall: `(8,4)` in the upper cell,
+  `(8,5)` in the lower. Right wall: `(7,4)` and `(7,5)`.
+- *Open*: the leaves cannot hang in the doorway, so they fold back against the wall *beyond*
+  the opening, in the room-side column (`1` at a left wall, `w−2` at a right one). Top half:
+  `(6,3)` in the cell beside the wall above the opening, at row `gapTopRow − 1`. Bottom half:
+  `(7,3)` **flipped horizontally**, at row `gapBottomRow + 1`. A right-wall door mirrors the
+  whole arrangement, flipping both halves again.
+- A side door in a sealed room is chained by the ordinary §8.3 rule: one shackle centred on
+  each of its two cells. Nothing is mirrored — the symmetric-tile rule of §8.3 applies to the
+  left/right halves of a horizontal pair, which a stacked pair does not have.
 
 **Keyholes**: a closed keyed door carries a procedural 6×9 metal plate — a 2×2 ring over a
 1×3 slot, lit from the top left — centred on the door's whole span: the middle of the `L`
@@ -241,7 +264,8 @@ table pending), all door endpoints in the room close and lock (sealed). When all
 are dead (and all waves exhausted, 02-entities §2.3), doors unseal (reopen if previously
 open; locked doors return to locked), the room is flagged **cleared permanently**, and any
 `on_clear` wiring fires. Cleared `combat_seal` rooms never respawn enemies. Authoring
-constraint: `combat_seal` rooms must have no side gaps (gaps cannot seal — no art).
+constraint: `combat_seal` rooms must have no side *gaps* (a gap has no leaf to shut). A side
+*door* is fine — it seals like any other door, chains and all (§8.1).
 
 **Chains.** A door held shut by an event rather than by a lock is drawn chained: every door
 endpoint in a sealed room, and every closed puzzle door anywhere. The chained art is
@@ -265,7 +289,9 @@ lint) — set `silver keys = 0` on floor change. There is no way back up.
 
 On **room entry** (including respawn after death):
 
-- Reset: enemies (respawned at their map positions, full HP, IDLE), trap phase counters
+- Reset: enemies (respawned at their map positions, full HP, IDLE — except that one standing
+  within 48 px of where the player lands arrives through a spawn telegraph instead of at
+  once, 02-entities §2.1), trap phase counters
   (to their per-placement offsets), projectiles (cleared), pushable crates (to map
   positions — except crates consumed by pits, which stay consumed; the pit stays bridged).
 - Persist (per floor, forever): opened chests (stay open and empty), destroyed

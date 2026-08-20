@@ -231,7 +231,7 @@
     },
     {
       "id": "d3",
-      "type": "gap",
+      "type": "normal",
       "a": {
         "room": "R3",
         "cells": [

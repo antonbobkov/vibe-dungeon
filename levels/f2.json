@@ -273,7 +273,7 @@
     },
     {
       "id": "d2",
-      "type": "gap",
+      "type": "normal",
       "a": {
         "room": "R2",
         "cells": [
@@ -327,7 +327,7 @@
     },
     {
       "id": "d5",
-      "type": "gap",
+      "type": "normal",
       "a": {
         "room": "R5",
         "cells": [

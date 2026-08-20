@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { lintFloorFile } from '../../tools/level-lint.js';
-import type { FloorFile, RoomSpec } from '../../src/sim/level.js';
+import { DOOR_SYMBOL, type DoorType, type FloorFile, type RoomSpec } from '../../src/sim/level.js';
 
 /**
  * One case per rule in 03-levels §1.7 and 05 §1, each a small mutation of the valid fixture.
@@ -78,32 +78,45 @@ describe('doors (01 §8.1, 03 §1.4)', () => {
     ).toContain('f1/R1: gap d1 is in the bottom wall; gaps are side-wall only');
   });
 
-  it('rejects a normal door in a side wall', () => {
-    expect(
-      problemsAfter((f) => {
-        f.rooms[0]!.map[2] = '#..@..D';
-        f.rooms[0]!.map[3] = '#.....D';
-        f.rooms[1]!.map[5] = '##DD###';
-        f.doors.push({
-          id: 'd2',
-          type: 'normal',
-          a: {
-            room: 'R1',
-            cells: [
-              [6, 2],
-              [6, 3],
-            ],
-          },
-          b: {
-            room: 'R2',
-            cells: [
-              [2, 5],
-              [3, 5],
-            ],
-          },
-        });
-      }),
-    ).toContain('f1/R1: normal door d2 is in the right wall; doors are top/bottom only');
+  /**
+   * A second door out of R1's right wall into R2's bottom wall, of whichever type — the
+   * shape every side-wall case below is a variation on (01 §8.1, 03 §1.4).
+   */
+  const withSideDoor = (type: DoorType) => (f: FloorFile) => {
+    const symbol = DOOR_SYMBOL[type];
+    f.rooms[0]!.map[2] = `#..@..${symbol}`;
+    f.rooms[0]!.map[3] = `#.....${symbol}`;
+    f.rooms[1]!.map[5] = `##${symbol}${symbol}###`;
+    f.doors.push({
+      id: 'd2',
+      type,
+      a: {
+        room: 'R1',
+        cells: [
+          [6, 2],
+          [6, 3],
+        ],
+      },
+      b: {
+        room: 'R2',
+        cells: [
+          [2, 5],
+          [3, 5],
+        ],
+      },
+    });
+  };
+
+  it('accepts a normal door in a side wall (01 §8.1 vertical doors)', () => {
+    expect(problemsAfter(withSideDoor('normal'))).toEqual([]);
+  });
+
+  it('rejects a keyed or puzzle door in a side wall, and says why', () => {
+    for (const type of ['silver', 'gold', 'puzzle'] as const) {
+      expect(problemsAfter(withSideDoor(type)), type).toContain(
+        `f1/R1: ${type} door d2 is in the right wall; side walls take normal doors and gaps only — a side door is an edge-on slit with nowhere to show a keyhole or an arch`,
+      );
+    }
   });
 
   it('rejects a door with the wrong number of cells', () => {
@@ -161,34 +174,41 @@ describe('doors (01 §8.1, 03 §1.4)', () => {
 });
 
 describe('combat seals (01 §8.3)', () => {
+  /** Seal R2 and give it a second opening out of its right wall, of the given type. */
+  const sealedWithSideOpening = (type: 'gap' | 'normal') => (f: FloorFile) => {
+    f.rooms[1]!.combatSeal = true;
+    f.rooms[1]!.map = ['##DD#V#', '#.....D', '#.....D', '#.....#', '#.....#', '#######'];
+    f.rooms.push(spareRoom('R3', '#######'));
+    f.rooms[2]!.map[2] = 'D.....#';
+    f.rooms[2]!.map[3] = 'D.....#';
+    f.doors.push({
+      id: 'd2',
+      type,
+      a: {
+        room: 'R2',
+        cells: [
+          [6, 1],
+          [6, 2],
+        ],
+      },
+      b: {
+        room: 'R3',
+        cells: [
+          [0, 2],
+          [0, 3],
+        ],
+      },
+    });
+  };
+
   it('rejects a sealed room with a side gap', () => {
-    expect(
-      problemsAfter((f) => {
-        f.rooms[1]!.combatSeal = true;
-        f.rooms[1]!.map = ['##DD#V#', '#.....D', '#.....D', '#.....#', '#.....#', '#######'];
-        f.rooms.push(spareRoom('R3', '#######'));
-        f.rooms[2]!.map[2] = 'D.....#';
-        f.rooms[2]!.map[3] = 'D.....#';
-        f.doors.push({
-          id: 'd2',
-          type: 'gap',
-          a: {
-            room: 'R2',
-            cells: [
-              [6, 1],
-              [6, 2],
-            ],
-          },
-          b: {
-            room: 'R3',
-            cells: [
-              [0, 2],
-              [0, 3],
-            ],
-          },
-        });
-      }),
-    ).toContain('f1/R2: is a combat_seal room but has a side gap, which cannot seal');
+    expect(problemsAfter(sealedWithSideOpening('gap'))).toContain(
+      'f1/R2: is a combat_seal room but has a side gap, which cannot seal',
+    );
+  });
+
+  it('accepts a sealed room with a side door, which shuts like any other (01 §8.1)', () => {
+    expect(problemsAfter(sealedWithSideOpening('normal'))).toEqual([]);
   });
 
   it('rejects a sealed room with no door to seal', () => {

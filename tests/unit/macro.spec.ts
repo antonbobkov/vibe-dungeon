@@ -196,6 +196,8 @@ describe('the committed combat scenarios', () => {
     const run = runReplay(replay, floors(), { log: () => {} });
     expect(run.failures).toEqual([]);
     expect(run.sim.player.hp).toBe(4);
-    expect(run.sim.playTick).toBe(151);
+    // 42 ticks later than it used to be: the near zombie is held back by the entry-safe
+    // radius of 02 §2.1 before it can take its first step.
+    expect(run.sim.playTick).toBe(193);
   });
 });

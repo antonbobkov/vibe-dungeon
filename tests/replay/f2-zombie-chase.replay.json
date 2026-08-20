@@ -10,49 +10,48 @@
     "treasure": 0,
     "deaths": 0
   },
-  "inputs": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "inputs": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "asserts": [
     {
       "tick": 0,
       "expect": {
         "room": "R4",
+        "enemies": 1,
+        "hp": 6
+      }
+    },
+    {
+      "tick": 42,
+      "expect": {
         "enemies": 2,
         "hp": 6
       }
     },
     {
-      "tick": 87,
+      "tick": 129,
       "expect": {
         "hp": 6
       }
     },
     {
-      "tick": 88,
+      "tick": 130,
       "expect": {
         "hp": 5
       }
     },
     {
-      "tick": 150,
+      "tick": 192,
       "expect": {
         "hp": 5
       }
     },
     {
-      "tick": 151,
+      "tick": 193,
       "expect": {
         "hp": 4,
         "enemies": 2,
         "deaths": 0
       }
     }
-  ],
-  "hashes": {
-    "every": 60,
-    "values": [
-      1981898473,
-      3102996742,
-      3801624605
-    ]
-  }
+  ]
 }

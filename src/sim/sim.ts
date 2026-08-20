@@ -11,12 +11,13 @@
  * comes back and everything it lists as "persist" is a flag.
  */
 
-import { boxCentre, moveAxisSeparated } from './collision.js';
+import { boxCentre, moveAxisSeparated, type Vec } from './collision.js';
 import { damagePlayer, isSwingActive, playerCentre, swordRect } from './combat.js';
 import {
   DEATH_BLACK_TICKS,
   DOOR_OPEN_RADIUS_PX,
   DYING_TICKS,
+  ENTRY_SAFE_RADIUS,
   PUSH_CHARGE_TICKS,
   SPAWN_BLINK_TICKS,
   SPAWN_TELEGRAPH_TICKS,
@@ -194,6 +195,21 @@ function pushDirection(
   if (vel.y > 0 && reaches(0, vel.y)) return Dir8.D;
   if (vel.y < 0 && reaches(0, vel.y)) return Dir8.U;
   return null;
+}
+
+/**
+ * Whether a map enemy on `at` stands too close to where the player lands to be allowed to
+ * simply appear there — 02 §2.1's spawn protection. The distance is measured from the spawn
+ * tile's centre to the player's hitbox centre at the entry position.
+ *
+ * Integer-only, like everything else in the sim (00-overview §Determinism): squared subpixel
+ * distances are compared directly, so there is no square root and no floating point.
+ */
+function withinEntrySafeRadius(centre: Vec, at: Cell): boolean {
+  const dx = at[0] * TILE_SUBPX + TILE_SUBPX / 2 - centre.x;
+  const dy = at[1] * TILE_SUBPX + TILE_SUBPX / 2 - centre.y;
+  const radius = ENTRY_SAFE_RADIUS * SUBPX;
+  return dx * dx + dy * dy < radius * radius;
 }
 
 /** Wrap a bare tile grid as a one-room floor, so ad-hoc test rooms take the same code path. */
@@ -532,20 +548,44 @@ export class Sim {
 
     // Enemies: respawned at their map positions, full HP (01 §9). A cleared combat_seal room
     // never respawns them.
+    //
+    // 02 §2.1's spawn protection: one standing within `ENTRY_SAFE_RADIUS` of where the player
+    // lands would otherwise be touching them before they could react, so it goes through the
+    // wave machinery instead — 30 ticks of telegraph, then 12 of blink-in, harmless and
+    // unhittable throughout. Everything further out appears at once, as it always did.
+    //
+    // Spawn ids stay deterministic because both halves keep the enemy table's document order:
+    // every enemy that appears now takes the next id, in that order, and every enemy that is
+    // held back takes the next id when its telegraph resolves — telegraphs are pushed in the
+    // same order, all run the same 30 ticks, and `updateWaves` promotes them in list order.
+    // So the ids are a stable function of the map plus the entry point, never of timing.
     const cleared = this.persistence.has(clearedFlag(floorId, def.id));
+    const entryCentre = boxCentre(PLAYER_BOX, { x, y });
+    const heldBack: SimTelegraph[] = [];
     this.nextEntityId = 0;
-    this.entities =
-      def.combatSeal && cleared
-        ? []
-        : def.enemies.map((e) =>
-            createEntity(
-              this.nextEntityId++,
-              e.type,
-              e.at[0] * TILE_SUBPX,
-              e.at[1] * TILE_SUBPX,
-              e.drop,
-            ),
-          );
+    this.entities = [];
+    if (!(def.combatSeal && cleared)) {
+      for (const e of def.enemies) {
+        if (withinEntrySafeRadius(entryCentre, e.at)) {
+          heldBack.push({
+            at: e.at,
+            kind: e.type,
+            drop: e.drop,
+            ticksLeft: SPAWN_TELEGRAPH_TICKS,
+          });
+          continue;
+        }
+        this.entities.push(
+          createEntity(
+            this.nextEntityId++,
+            e.type,
+            e.at[0] * TILE_SUBPX,
+            e.at[1] * TILE_SUBPX,
+            e.drop,
+          ),
+        );
+      }
+    }
 
     // Trap phase counters reset to their per-placement offsets, and nothing is in flight
     // (01 §9).
@@ -558,8 +598,9 @@ export class Sim {
 
     // Waves start over on entry unless the room is done with (01 §9). Wave 1 telegraphs
     // immediately — 02 §2.3 puts it on room entry, not a tick later — which is also what
-    // makes the seal shut before the player has moved.
-    this.telegraphs = [];
+    // makes the seal shut before the player has moved. The enemies spawn protection held
+    // back are already telegraphing, ahead of any wave, and count as a threat the same way.
+    this.telegraphs = heldBack;
     this.waveGap = -1;
     this.pendingWave = def.waves.length > 0 && !cleared ? 0 : -1;
     if (this.pendingWave === 0) this.beginWave();
@@ -1401,8 +1442,17 @@ export class Sim {
       h = writeInt32(h, e.state);
       h = writeInt32(h, e.stateTimer);
     }
-    // Bolts are not in 05 §4's field list — it predates them having state — so they hash
-    // here, right after the entities they fly among, before the traps that fired them.
+    // Telegraphs are pending entities, so they hash right after the ones already standing
+    // (05 §4). Spawn protection (02 §2.1) puts one on any room's entry, so a run that differs
+    // only in what is still counting down has to differ in its hash too, or the determinism
+    // gate would not see it.
+    for (const t of this.telegraphs) {
+      h = writeInt32(h, ENEMY_TYPE_ID[t.kind]);
+      h = writeInt32(h, t.at[0]);
+      h = writeInt32(h, t.at[1]);
+      h = writeInt32(h, t.ticksLeft);
+    }
+    // Bolts hash after the entities they fly among and before the traps that fired them.
     for (const bolt of this.bolts) {
       h = writeInt32(h, bolt.x);
       h = writeInt32(h, bolt.y);

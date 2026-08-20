@@ -133,15 +133,16 @@ function checkDoors(floor: LoadedFloor, say: (m: string) => void, sayRoom: RoomS
       const room = floor.rooms[end.roomIndex]!;
       const sideWall = end.wall === 'left' || end.wall === 'right';
 
-      // 01 §8.1: locked and puzzle doors only exist in top/bottom walls; gaps only in side
-      // walls, because no side-wall door art exists (00-overview asset gaps).
+      // 01 §8.1: gaps only exist in side walls, and a side wall takes nothing else but a
+      // `normal` door — its closed art is an edge-on slit a few pixels wide, with nowhere to
+      // put the keyhole a keyed door needs or the arch a puzzle door wears.
       if (door.type === 'gap' && !sideWall) {
         sayRoom(room, `gap ${door.id} is in the ${end.wall} wall; gaps are side-wall only`);
       }
-      if (door.type !== 'gap' && sideWall) {
+      if (sideWall && door.type !== 'gap' && door.type !== 'normal') {
         sayRoom(
           room,
-          `${door.type} door ${door.id} is in the ${end.wall} wall; doors are top/bottom only`,
+          `${door.type} door ${door.id} is in the ${end.wall} wall; side walls take normal doors and gaps only — a side door is an edge-on slit with nowhere to show a keyhole or an arch`,
         );
       }
 
@@ -169,7 +170,8 @@ function checkDoors(floor: LoadedFloor, say: (m: string) => void, sayRoom: RoomS
     }
   }
 
-  // Combat seals need doors they can actually close (01 §8.3).
+  // Combat seals need doors they can actually close (01 §8.3). A side *door* is one of them —
+  // it shuts like any other — but a side gap has no leaf to shut and is still refused.
   for (const room of floor.rooms) {
     if (!room.combatSeal) continue;
     const ends = floor.doors.filter((d) => d.a.room === room.id || d.b.room === room.id);

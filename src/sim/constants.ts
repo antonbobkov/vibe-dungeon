@@ -209,6 +209,13 @@ export const PUSH_SLIDE_TICKS = 12;
 // Waves and seals — 02-entities §2.3, 01-mechanics §8.3
 // ---------------------------------------------------------------------------
 
+/**
+ * Spawn protection (02 §2.1): a map enemy whose spawn-tile centre is closer than this to
+ * where the player's hitbox centre lands on room entry does not appear at once — it goes
+ * through the telegraph + blink-in of 02 §2.3 instead. 48 px is three tiles.
+ */
+export const ENTRY_SAFE_RADIUS = 48;
+
 /** A spawn cursor blinks on the tile for 30 ticks before anything appears (02 §2.3). */
 export const SPAWN_TELEGRAPH_TICKS = 30;
 /** Then the enemy blinks in for 12, inactive and unhittable. */

@@ -1,14 +1,21 @@
 # Floor 1, the Broken Hall: kill the skeleton in two swings (02 §2.2 gives it 2 HP).
 #
-# The player starts two tiles below it and walks up, which also turns them to face it. The
-# first hit knocks it back out of reach (01 §4.2), so the second swing needs a step forward
-# first. It dies on tick 40 and finishes fading 12 ticks later (02 §2.1).
+# The player starts two tiles below it, which is inside the entry-safe radius of 02 §2.1: the
+# skeleton does not simply appear there. It telegraphs for 30 ticks and blinks in for 12,
+# harmless and unhittable throughout, so the fight starts on tick 43 rather than tick 1.
+#
+# From there the player walks up, which also turns them to face it. The first hit knocks it
+# back out of reach (01 §4.2), so the second swing needs a step forward first. It dies on
+# tick 82 and finishes fading 12 ticks later (02 §2.1).
 
 floor f1
 room R2
 at 6,6
 
-assert room=R2 enemies=1 hp=6 treasure=0
+assert room=R2 enemies=0 hp=6 treasure=0
+
+W 42                     # the telegraph, then the blink-in
+assert enemies=1 hp=6    # standing, and nothing has been able to touch anything yet
 
 U 10                     # close the gap, facing up
 A                        # first swing

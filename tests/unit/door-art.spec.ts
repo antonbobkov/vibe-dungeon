@@ -13,6 +13,9 @@ import {
   doorCellSide,
   doorLeafDraws,
   keyholeDraws,
+  sideDoorDraws,
+  sideDoors,
+  sideWallAt,
   type KeyholeShade,
 } from '../../src/render/doors.js';
 import { tile } from '../../src/assets/packA.js';
@@ -90,11 +93,11 @@ describe('open door leaves (01 §8.1)', () => {
     expect(tile('door_leaf_right_top')).toMatchObject({ col: 8, row: 4 });
   });
 
-  it('draws no leaf for a closed door, and none at all for a side gap', () => {
+  it('draws no leaf for a closed door, and none at all for one in a side wall', () => {
     const r1 = room(0, 'R1');
     expect(doorLeafDraws(r1, r1.base)).toEqual([]);
 
-    // f1 d2 is the R2↔R3 gap at (12,4)(12,5): open from the start, and never door art.
+    // f1 d2 is the R2↔R3 side door at (12,4)(12,5). It swings a different way, below.
     const r2 = room(0, 'R2');
     expect(doorLeafDraws(r2, grid(r2, [12, 4], [12, 5]))).toEqual([]);
   });
@@ -106,8 +109,92 @@ describe('open door leaves (01 §8.1)', () => {
 
     const r2 = room(0, 'R2');
     expect(doorCellSide(r2, 6, 0)).toBe('single'); // the silver door d3
-    expect(doorCellSide(r2, 12, 4)).toBe('single'); // a gap's cells are stacked, not paired
+    expect(doorCellSide(r2, 12, 4)).toBe('single'); // a side door's cells are stacked
     expect(doorCellSide(r2, 1, 1)).toBe('single'); // not a door cell at all
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Side-wall doors (01 §8.1). f1 d2 runs between R2's right wall at (12,4)(12,5) and R3's
+ * left wall at (0,3)(0,4), which gives one of each to pin.
+ */
+describe('side-wall doors (01 §8.1)', () => {
+  const r2 = room(0, 'R2'); // 13 wide, so the room-side column is 11
+  const r3 = room(0, 'R3'); // 9 wide, room-side column 1
+
+  it('reads a door out of its side wall, with the cells the level gave it', () => {
+    expect(sideDoors(r2)).toEqual([
+      { doorId: 'd2', wall: 'right', col: 12, topRow: 4, bottomRow: 5 },
+    ]);
+    expect(sideDoors(r3)).toEqual([
+      { doorId: 'd2', wall: 'left', col: 0, topRow: 3, bottomRow: 4 },
+    ]);
+
+    expect(sideWallAt(r2, 12)).toBe('right');
+    expect(sideWallAt(r3, 0)).toBe('left');
+    expect(sideWallAt(r2, 6)).toBeNull(); // the silver door's column, in the top wall
+  });
+
+  it('closes a right-wall door with the left-inset slits, over the opening itself', () => {
+    expect(sideDoorDraws(r2, r2.base)).toEqual([
+      { tile: 'door_leaf_left_top', x: 192, y: 64, flipX: false },
+      { tile: 'door_leaf_left_bottom', x: 192, y: 80, flipX: false },
+    ]);
+    expect(tile('door_leaf_left_top')).toMatchObject({ col: 7, row: 4 });
+    expect(tile('door_leaf_left_bottom')).toMatchObject({ col: 7, row: 5 });
+  });
+
+  it('closes a left-wall door with the right-inset slits, which hug the other brick line', () => {
+    expect(sideDoorDraws(r3, r3.base)).toEqual([
+      { tile: 'door_leaf_right_top', x: 0, y: 48, flipX: false },
+      { tile: 'door_leaf_right_bottom', x: 0, y: 64, flipX: false },
+    ]);
+    expect(tile('door_leaf_right_top')).toMatchObject({ col: 8, row: 4 });
+    expect(tile('door_leaf_right_bottom')).toMatchObject({ col: 8, row: 5 });
+  });
+
+  it('opens a left-wall door into two half-leaves beyond the opening, in column 1', () => {
+    // Top half in the cell beside the wall above the gap, bottom half beside the wall below
+    // it and mirrored, both anchored one column into the room.
+    expect(sideDoorDraws(r3, grid(r3, [0, 3], [0, 4]))).toEqual([
+      { tile: 'door_double_closed_left', x: 16, y: 32, flipX: false },
+      { tile: 'door_double_closed_right', x: 16, y: 80, flipX: true },
+    ]);
+    expect(tile('door_double_closed_left')).toMatchObject({ col: 6, row: 3 });
+    expect(tile('door_double_closed_right')).toMatchObject({ col: 7, row: 3 });
+  });
+
+  it('mirrors the whole arrangement for a right-wall door, in column w−2', () => {
+    expect(sideDoorDraws(r2, grid(r2, [12, 4], [12, 5]))).toEqual([
+      { tile: 'door_double_closed_left', x: 176, y: 48, flipX: true },
+      { tile: 'door_double_closed_right', x: 176, y: 96, flipX: false },
+    ]);
+  });
+
+  it('leaves the terrain under the opening exactly as a gap left it, open or shut', () => {
+    // 03 §1.3's caps above and below, and the passage itself in both states.
+    const shut = autotileRoom(r2, r2.base);
+    const open = autotileRoom(r2, grid(r2, [12, 4], [12, 5]));
+    for (const refs of [shut, open]) {
+      expect(cellAt(refs, r2, 12, 4)).toEqual({ col: 8, row: 7 }); // void_fill
+      expect(cellAt(refs, r2, 12, 5)).toEqual({ col: 8, row: 7 });
+      expect(cellAt(refs, r2, 12, 3)).toEqual({ col: 5, row: 4 }); // bottom cap above it
+      expect(cellAt(refs, r2, 12, 6)).toEqual({ col: 5, row: 0 }); // fresh top corner below
+    }
+  });
+
+  it('hangs a chain on each of its cells when a seal is holding it (01 §8.3)', () => {
+    // R2's three doors, all closed: the bottom pair, the side door, and the silver single.
+    expect(chainedCells(r2, r2.base, true)).toEqual([
+      [4, 8],
+      [5, 8],
+      [12, 4],
+      [12, 5],
+      [6, 0],
+    ]);
+    expect(chainedCells(r2, r2.base, false)).toEqual([]); // none of them is chained unsealed
   });
 });
 

@@ -128,7 +128,9 @@ byte stream: for each field in the fixed order below, little-endian int32 per va
 Order: play-time tick · floor index · current room index · player (x, y, hp, facing,
 state id, state timer, iframe timer, invuln timer, knock vx, knock vy) · treasure ·
 silver keys · gold key (0/1) · deaths · for each entity in spawn-id order: (type id, x,
-y, hp, state id, state timer) · for each trap in document order: phase · for each door:
+y, hp, state id, state timer) · for each spawn telegraph in list order: (type id, col,
+row, ticks left) · for each bolt in flight, in spawn order: (x, y) ·
+for each trap in document order: phase · for each door:
 open state id · for each persistent flag set on this floor (sorted lexicographically):
 FNV of its string id · pending wave index · seal state.
 

@@ -43,6 +43,7 @@ import {
   chainDraws,
   doorLeafDraws,
   keyholeDraws,
+  sideDoorDraws,
 } from './doors.js';
 import { FLOAT_RISE_PX, PIT_DROP_PX, UNSHACKLE_DROP_PX, type Effect } from './effects.js';
 import { frameIndex } from './anim.js';
@@ -152,8 +153,9 @@ function drawTerrain(
 
 /**
  * Everything a door shows over its terrain tile (01 §8.1, §8.3): the leaf of an open one,
- * tucked ¾ into its doorway and standing 4 px proud of the wall; the keyhole plate of a
- * closed keyed one; and the chains of an event-locked one, over the top of both.
+ * tucked ¾ into its doorway and standing 4 px proud of the wall; the edge-on slits or folded
+ * half-leaves of a side-wall one; the keyhole plate of a closed keyed one; and the chains of
+ * an event-locked one, over the top of all of it.
  *
  * The decisions all live in `doors.ts`, which knows nothing about a canvas; this is only the
  * blitting.
@@ -166,7 +168,7 @@ function drawDoorArt(
   origin: Origin,
   sealed: boolean,
 ): void {
-  for (const leaf of doorLeafDraws(def, tiles)) {
+  for (const leaf of [...doorLeafDraws(def, tiles), ...sideDoorDraws(def, tiles)]) {
     blit(ctx, atlas.tile(leaf.tile), origin.ox + leaf.x, origin.oy + leaf.y, leaf.flipX);
   }
 

@@ -38,6 +38,18 @@ axis-separated collision of 01-mechanics §3; knockback direction snapping is 01
 | Room bounds | enemies never leave their room; clamped to interior tiles |
 | Walk anim | 4-frame idle loop; 8 ticks/frame idle, 5 ticks/frame moving, plus the same walk bob as the player |
 
+**Spawn protection** (room entry, 01 §9): a map enemy whose spawn-tile centre is closer than
+**`ENTRY_SAFE_RADIUS` = 48 px** (3 tiles) to the player's hitbox centre at the entry position
+is not created with the room. It arrives through the wave machinery of §2.3 instead — a
+30-tick spawn telegraph on its tile, then the 12-tick blink-in, inactive and unhittable
+throughout — so nothing can be touching the player before they can react to it. Enemies at
+or beyond the radius appear at once, as they always did. The comparison is between squared
+subpixel distances (integer-only, 00-overview §Determinism). Applies on every entry,
+respawn-after-death included; wave tables are unaffected, as they already telegraph. Spawn
+ids follow the enemy table's document order in both halves: the enemies that appear at once
+take the first ids, in that order, and each held-back enemy takes the next id when its
+telegraph resolves, in that same order.
+
 **Chase steering** (used by all): let `(dx, dy)` = player hitbox centre − enemy hitbox
 centre in subpx. If `|dx| > 8` and `|dy| > 8`: move diagonally, each axis at
 `(speed*181)>>8` signed. Else move at full speed along the axis with the larger `|·|`

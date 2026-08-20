@@ -203,10 +203,12 @@ describe('chains coming off (01 §8.3)', () => {
 
   it('breaks them off every door in the room when a seal releases', () => {
     // f3 R6 seals on entry against three enemies, holding its one door d5 at (4,7)(5,7).
+    // Entering at the door, which is far enough from all three that none of them is held
+    // back by 02 §2.1's spawn protection.
     const s = game({
       floorIndex: 2,
       roomId: 'R6',
-      start: { x: 5 * TILE_SUBPX, y: 3 * TILE_SUBPX },
+      start: { x: 5 * TILE_SUBPX, y: 6 * TILE_SUBPX },
     });
     expect(s.seal).toBe(1);
     expect(snapshot(s).chained).toEqual([

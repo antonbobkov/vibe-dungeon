@@ -88,8 +88,16 @@ function floorArt(room: Room, col: number, row: number): TileRef {
   return { col: 6 + (v % 4), row: Math.floor(v / 4) };
 }
 
-/** Is this perimeter cell part of a side gap (two `D` cells in a side wall)? */
-function isSideGap(room: LoadedRoom, col: number, row: number): boolean {
+/**
+ * Is this perimeter cell part of a side opening — two `D` cells in a side wall, whether the
+ * door table calls them a gap or a `normal` door (01 §8.1)?
+ *
+ * The terrain is the same either way: the wall run is capped above and below and the two
+ * cells themselves show the passage through. What a side door adds is overlay art — the
+ * edge-on slits it is closed with, the half-leaves it swings into — and that belongs to
+ * `doors.ts`, not to the terrain layer.
+ */
+function isSideDoorCell(room: LoadedRoom, col: number, row: number): boolean {
   if (col !== 0 && col !== room.w - 1) return false;
   return room.doorCells.get(`${col},${row}`) !== undefined;
 }
@@ -107,10 +115,10 @@ function perimeterWall(room: LoadedRoom, col: number, row: number): TileRef {
   if (row === 0) return topWall(col);
   if (row === lastRow) return bottomWall(col);
 
-  // 03 §1.3: the cell above a side gap caps the run from below, the cell below it starts a
-  // fresh run from above.
-  if (isSideGap(room, col, row + 1)) return col === 0 ? WALL_CORNER_BL : WALL_CORNER_BR;
-  if (isSideGap(room, col, row - 1)) return col === 0 ? WALL_CORNER_TL : WALL_CORNER_TR;
+  // 03 §1.3: the cell above a side opening caps the run from below, the cell below it starts
+  // a fresh run from above.
+  if (isSideDoorCell(room, col, row + 1)) return col === 0 ? WALL_CORNER_BL : WALL_CORNER_BR;
+  if (isSideDoorCell(room, col, row - 1)) return col === 0 ? WALL_CORNER_TL : WALL_CORNER_TR;
 
   return col === 0 ? leftWall(row) : rightWall(row);
 }
@@ -141,8 +149,11 @@ export function autotileRoom(room: LoadedRoom, tiles: Room = room.base, sealed =
       if (room.ladder && room.ladder[0] === col && room.ladder[1] === row) {
         out.push(LADDER);
       } else if (cls === TileClass.DOOR_CLOSED || cls === TileClass.DOOR_OPEN) {
-        // An open doorway shows the room behind it; a closed one shows its leaves.
-        out.push(cls === TileClass.DOOR_OPEN ? VOID_FILL : doorArt(room, col, row, sealed));
+        // An open doorway shows the room behind it; a closed one shows its leaves. A side
+        // opening shows the passage in both states — its door, when it has one, is drawn
+        // over the top of this (01 §8.1).
+        const open = cls === TileClass.DOOR_OPEN || isSideDoorCell(room, col, row);
+        out.push(open ? VOID_FILL : doorArt(room, col, row, sealed));
       } else if (cls === TileClass.WALL) {
         out.push(perimeter ? perimeterWall(room, col, row) : interiorWall(tiles, col, row));
       } else if (cls === TileClass.PIT) {
