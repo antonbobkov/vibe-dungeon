@@ -42,13 +42,13 @@ describe('the victory stats (04-ui §3.3)', () => {
     expect(formatTime(0)).toBe('TIME 00:00');
     expect(formatTime(TICK_RATE * 9)).toBe('TIME 00:09');
     expect(formatTime(TICK_RATE * 65)).toBe('TIME 01:05');
-    expect(formatTime(9875)).toBe('TIME 02:44'); // the M5 full-game replay
+    expect(formatTime(9934)).toBe('TIME 02:45'); // the M5 full-game replay
   });
 
   it('reports deaths and treasure against the whole economy of 03 §6', () => {
     expect(TREASURE_TOTAL).toBe(83);
-    expect(statLines({ playTicks: 9875, deaths: 0, treasure: 81 })).toEqual([
-      'TIME 02:44',
+    expect(statLines({ playTicks: 9934, deaths: 0, treasure: 81 })).toEqual([
+      'TIME 02:45',
       'DEATHS 0',
       'TREASURE 81/83',
     ]);

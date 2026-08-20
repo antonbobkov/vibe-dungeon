@@ -184,8 +184,8 @@ the PR/commit description). The test that proves each is named beside it:
 - [x] walk bob + facing flip (player + enemies) — `sprites.spec.ts`
 - [x] attack lunge + drawn arc — `sprites.spec.ts` (lunge), `world.spec.ts` (`arcPixels`:
       radius, sweep, one white leading pixel)
-- [x] door auto-open at 24 px + leaf art swap — `doors.spec.ts`, `world.spec.ts`
-      (`doorLeafSide`)
+- [x] door auto-open at 24 px + leaf art swap — `doors.spec.ts`, `door-art.spec.ts`
+      (`doorCellSide`, `doorLeafDraws`; side doors via `sideDoorDraws`)
 - [x] spawn telegraph cursors — `sprites.spec.ts`, `wave.spec.ts`
 - [x] chest item float-up — `events.spec.ts` (8 px over 30 ticks, 10 ticks apart)
 - [x] crate pit-drop animation — `events.spec.ts` (the event fires after the sim has

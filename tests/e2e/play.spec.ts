@@ -206,7 +206,7 @@ test('the full-game replay ends on the victory screen (04-ui §3.3)', async ({ p
   await page.goto('/');
   await waitForBoot(page);
 
-  // M5's chained solution: 9875 ticks, all four floors, through this same loop.
+  // M5's chained solution: 9934 ticks, all four floors, through this same loop.
   const replay = await page.evaluate(async () => {
     const response = await fetch('/tests/replay/fullgame.replay.json');
     return (await response.json()) as { inputs: string };

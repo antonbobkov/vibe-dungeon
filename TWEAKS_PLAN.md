@@ -152,6 +152,13 @@ Done when:
   in `spec/02-entities.md` §3.2.
 - `npm run typecheck && npm run lint && npm test && npm run test:e2e` green; commit+push.
 
+**Outcome — `7e3817b`.** Landed as written. `Space`/`Backspace` joined `BINDINGS`; `KeyE`
+was already there. Every `arrow_launcher` frame is cropped to its top 16×16 in the loader
+(placeholder art too), so the baked-in bolt is gone and `Just_arrow` is the only arrow in
+the lane. The pit flicker turned out to be the *tile*, not the interpolation: the fix is in
+the drawn-tile bookkeeping plus the `slidePosition` divisor, and it is pinned by a pure
+per-tick draw-list test. No sim change, so replays and goldens were untouched.
+
 ### W2 — Door visuals rework (horizontal doors, keyholes, chains)
 
 Renderer + effects only; replays untouched; **visual goldens change by design** —
@@ -171,6 +178,16 @@ Done when:
 - Spec: `spec/01-mechanics.md` §8.1 open/closed art description rewritten (current text
   describes the 2-tile jamb leaves); §8.3 notes the seal chains.
 - Full local gate incl. `npm run test:visual`; commit+push.
+
+**Outcome — `b621a76`.** Landed as written, in `src/render/doors.ts`. **One deviation**:
+the keyhole plate is **6×9**, not the 6×8 this plan sketched — the keyway is five rows
+tall, and eight rows leave only six inside the two bevels, so one end of the keyway touched
+the dark edge and stopped reading as a hole. Confirmed against mockups from the real Pack A
+door tiles before it was written; 01 §8.1 says 6×9. Telling an event open from a key turning
+needed no sim change: chains only ever hang on puzzle doors and on what a seal holds, so
+`unshackle` fires on a cell leaving `chainedCells`, the renderer's own set. Visual goldens
+did **not** change after all (F1R1's only door is a closed normal double, which none of this
+touches), so nothing was regenerated.
 
 ### W3 — Sim changes: spawn protection + vertical doors
 
@@ -196,6 +213,22 @@ Done when:
 - `npm test` and `npm run lint:levels` green (replays may be red here — see W4);
   commit+push.
 
+**Outcome — `7ef1227`.** Landed as written. `ENTRY_SAFE_RADIUS = 48` holds back any map
+enemy inside three tiles of the entry point and runs it through the wave machinery instead;
+`sim.hash()` grew the telegraph list, which it had to, since telegraphs used to exist only
+in wave rooms. All five side gaps in f1–f3 became `normal` doors (door-table `type` only —
+the ASCII maps are untouched); f4 had none. Replays went red by design, as scoped, and W4
+reconciled them.
+
+**Known, out of scope (pre-existing, tracked separately).** A `combat_seal` room can be
+walked out of: `openNearbyDoors` (`src/sim/sim.ts`) opens any *normal* door whose centre is
+within 24 px, without consulting `seal`, and `openDoor` writes the `DOOR_OPEN` tile
+straight away — so a not-yet-opened normal door in a sealed room (F4 R4's `d4` on the
+solution path) unseals itself on approach. This predates the tweaks batch; W3's gap→door
+conversion neither caused it nor widened it (no converted door sits in a seal room), and
+W4 deliberately did not fix it — a sim change there would have moved the very replays W4
+exists to pin down.
+
 ### W4 — Reconciliation
 
 Scope: re-record replays via the route autopilot (`npm run route`, then
@@ -212,6 +245,23 @@ Done when:
   (the `FULLGAME_TICKS` window widens only if the telegraph delays justify it — say so
   in the commit).
 - Commit+push.
+
+**Outcome.** Every route survived unchanged — no `goto`, `clear` or `wait` needed retiming,
+because `clear` waits on telegraphs as well as enemies and the auto-opening side doors need
+no inputs. `f1.macro` and `f4.macro`'s tapes came back byte-identical; `f2` lost 24 ticks
+(2612 → 2588) and `f3` gained 83 (3098 → 3181), and the chained game went 9875 → 9934 ticks
+— still `treasure=81, victory=true`, and comfortably inside the existing 8 000–60 000
+`FULLGAME_TICKS` band, which therefore did **not** need widening. Every assert *value* is
+unchanged and still matches the solution-path tables of 03 §2–§5; only the ticks they sit on
+moved. One route header did change: the chained run now hands floor 4 **four** hearts rather
+than five (spawn protection costs the autopilot one heart re-clearing F3 R3), so `f4.route`'s
+`start hp=` follows it, as that file's own rule says it should — the tape is unaffected and
+still byte-identical to the chained run's f4 segment. Visual goldens passed untouched. The
+spec sweep found the tweak sections accurate; what it did fix was tick counts that had gone
+stale (README, TESTING §6, the bench's pinned `9875`, `hud.spec`'s example), a dead
+`doorLeafSide` reference in IMPLEMENTATION_PLAN, ASSET_GUIDE §3.2 still describing only the
+pack's 2-tile leaf recipe, 02 §4.4 reading as though the shackle were decor-table-only, and
+four wrong cross-references in 00-overview's asset-gaps table.
 
 ## Manual spot-check list (for the project owner, after W4)
 

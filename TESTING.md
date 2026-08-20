@@ -121,7 +121,7 @@ changed.
 `npm run bench`: runs the full-game replay headless and times every tick; p95 ≤ 2 ms on
 the CI runner (generous — the sim is one small room at a time). A regression fails CI,
 catching accidental O(n²) in overlap checks. On the machine this was written on the whole
-9875-tick game replays in about 40 ms: p50 0.004 ms a tick, p95 0.009 ms.
+9934-tick game replays in about 40 ms: p50 0.003 ms a tick, p95 0.009 ms.
 
 The renderer bench is local, and rides with the visual goldens (`npm run test:visual`,
 skipped without `art_assets/`): it drives M5's floor-4 tape to the tick the Arena's third

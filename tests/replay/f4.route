@@ -4,9 +4,10 @@
 # leaves it: the 81 coins of 03 §6 are what the run is for.
 
 floor f4
-# The chained run arrives here on five hearts (tools/route.ts --chain reports each seam),
-# so the standalone floor replay starts on five too: same arena, same margin.
-start hp=5 treasure=56 deaths=0
+# The chained run arrives here on four hearts (tools/route.ts --chain reports each seam),
+# so the standalone floor replay starts on four too: same arena, same margin. It was five
+# before the W3 spawn-protection tweak, which costs the autopilot one heart on floor 3.
+start hp=4 treasure=56 deaths=0
 
 say Floor 4 - The Deep Vault (03-levels section 5)
 assert room=R1 floor=4 treasure=56

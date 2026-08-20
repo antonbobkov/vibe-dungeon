@@ -65,12 +65,12 @@ describe('sim tick cost across the whole game', () => {
         `${report.totalMs.toFixed(0)} ms for the run`,
     );
 
-    expect(report.ticks).toBe(9875); // the M5 full-game replay, unchanged
+    expect(report.ticks).toBe(9934); // the M5 full-game replay, re-recorded in W4
     expect(report.p95).toBeLessThanOrEqual(P95_BUDGET_MS);
   });
 
   it('replays the whole game in far less time than it would take to play it', () => {
-    // 9875 ticks is 2 min 45 s of play; the sim should chew through it in well under a second
+    // 9934 ticks is 2 min 46 s of play; the sim should chew through it in well under a second
     // on any machine that can run the game at all.
     const replay = JSON.parse(readFileSync(REPLAY, 'utf8')) as Replay;
     const inputs = replayInputs(replay);

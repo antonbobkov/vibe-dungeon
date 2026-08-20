@@ -279,6 +279,14 @@ Confirmed by palette: the leaf uses exactly `#895a45` (door plank), `#523b40` (p
 `#90919e` (steel hardware) and `#25131a` (outline) — a strict subset of the door tiles' colours,
 missing only the orange lintel brick `#bf704d` and the frame highlight `#adc1cf`.
 
+*How UNDERVAULT composes them* (01-mechanics §8.1 is the authority; this table is the pack's own
+recipe): the game hangs **one 16×16 leaf tile per door cell** rather than the 2-tile leaf above —
+the top half only, tucked ¾ into the doorway, 4 px proud of the wall row — and a single `L` door
+takes the left-inset `(7,4)` rather than the centred `(6,4)`, so every door leaf reads the same
+way. It also puts doors in **side** walls, where the pack has no art at all: the inset halves
+`(8,4)/(8,5)` and `(7,4)/(7,5)` become edge-on slits over the opening when shut, and `(6,3)/(7,3)`
+fold back against the wall beside it when open. The centred leaf `(6,4)+(6,5)` is unused.
+
 **Vertical shaft between floors:** stack `(9,3)` repeatedly in a column of void.
 
 **Corridor:** a 1-tile-tall corridor is just a floor row with `(1..4,0)` above it and `(1..4,4)`

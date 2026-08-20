@@ -233,7 +233,8 @@ Pushable crates that were not consumed reset to their map positions on every roo
 Placed via each room's decor table (03-levels): banner `flag/flag_1..4` loop (wall cell);
 bone decals `(4,6)`, `(5,6)`, `(8,6)`, `(7,7)`; wall shield `(4,7)`; shackle `(5,7)`.
 Renderer must draw exactly what the decor table lists — nothing procedural — so visual
-goldens stay stable.
+goldens stay stable. (The shackle `(5,7)` is also hung on event-locked doors by 01 §8.3.
+That is door art, driven by the door's state, not a decor-table entry.)
 
 ### 4.5 Descent ladder (`V`)
 

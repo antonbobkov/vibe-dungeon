@@ -71,7 +71,7 @@ gold pickups, red traps. That is also what CI plays, since CI has no art either.
 
 The sim is deterministic and hashable, so a playthrough is a file: `tests/replay/*.macro`
 compiles to a tape of one input byte per tick, and `npm run test:replay` runs all twelve
-headless — the four floor solutions, the chained full game (9875 ticks, 2 min 45 s, ending on
+headless — the four floor solutions, the chained full game (9934 ticks, 2 min 46 s, ending on
 `treasure=81, victory=true`), two softlock probes and the scenario macros — checking every
 embedded assert, that two runs agree tick for tick, and that each run still matches the state
 hashes recorded beside it.

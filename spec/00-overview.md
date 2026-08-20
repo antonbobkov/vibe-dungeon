@@ -112,11 +112,11 @@ code-drawn or spec-embedded pixel data — no external assets may be added:
 
 | Gap | Resolution |
 |---|---|
-| Character walk/attack/death animations (Pack A has only 4-frame idle loops) | Code-driven motion: walk bob, horizontal flip, attack lunge, damage flash, death fade. Exact rules in 02-entities §1.3 and §2.1. |
-| Sword swing sprite | Code-drawn arc in Pack A steel/white colours; geometry in 01-mechanics §4.3. |
-| HUD heart icons | 7×6 px bitmaps embedded in 04-ui §2.2, drawn in Pack A palette colours. |
-| Text font | 3×5 px bitmap font embedded in 04-ui §5. |
-| Audio (no audio assets exist at all) | Small WebAudio synth cue table in 04-ui §6. |
+| Character walk/attack/death animations (Pack A has only 4-frame idle loops) | Code-driven motion: walk bob, horizontal flip, attack lunge, damage flash, death fade. Exact rules in 02-entities §1.1 and §2.1. |
+| Sword swing sprite | Code-drawn arc in Pack A steel/white colours; geometry in 01-mechanics §4.2. |
+| HUD heart icons | 7×6 px bitmaps embedded in 04-ui §2, drawn in Pack A palette colours. |
+| Text font | 3×5 px bitmap font embedded in 04-ui §4. |
+| Audio (no audio assets exist at all) | Small WebAudio synth cue table in 04-ui §5. |
 | Side-wall door art (doors exist only front-facing) | A side exit is a 2-tile opening that may carry a **vertical door**, drawn from the front-facing art seen edge-on: the inset halves of the leaf tiles as closed slits on the opening, the double-door halves folded back against the wall beside it when open. No keyhole or arch reads at that angle, so `silver`/`gold`/`puzzle` remain top/bottom-wall only. (01-mechanics §8.1, 03-levels §1.4.) |
 
 The mechanic set was chosen to fit the assets; nothing requires art that doesn't exist

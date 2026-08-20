@@ -3,7 +3,7 @@
 # 2266 ticks. Recompile with npm run macro:compile after regenerating.
 
 floor f4
-start hp=5 treasure=56 deaths=0
+start hp=4 treasure=56 deaths=0
 
 # Floor 4 - The Deep Vault (03-levels section 5)
 assert room=R1 floor=4 treasure=56
