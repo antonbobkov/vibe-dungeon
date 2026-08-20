@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { floorLabelOrigin } from '../../src/render/hud.js';
 import { GLYPH_H, GLYPH_W, advance, centredX, glyphRows } from '../../src/render/font.js';
 import { PALETTE } from '../../src/render/palette.js';
+import { PlayerState } from '../../src/sim/player.js';
 
 /**
  * The M6 checklist, in the browser with `PLACEHOLDER_ART=1`: boots to the title, ATTACK
@@ -29,6 +30,7 @@ interface AppState {
   screen: string;
   floor: number;
   room: string;
+  playerState: number;
   treasure: number;
   replaying: boolean;
 }
@@ -36,6 +38,19 @@ interface AppState {
 const state = (page: Page): Promise<AppState> =>
   page.evaluate(() =>
     (window as unknown as { undervault: { state(): AppState } }).undervault.state(),
+  );
+
+/** Stop the loop advancing time, so a test can put the game on an exact tick (TESTING.md §5). */
+const freeze = (page: Page): Promise<void> =>
+  page.evaluate(() =>
+    (window as unknown as { undervault: { freeze(v?: boolean): void } }).undervault.freeze(),
+  );
+
+const advanceTicks = (page: Page, ticks: number): Promise<void> =>
+  page.evaluate(
+    (n) =>
+      (window as unknown as { undervault: { advance(n: number): void } }).undervault.advance(n),
+    ticks,
   );
 
 /** The hook appears once the atlas has finished loading, which is the game's "ready". */
@@ -119,6 +134,41 @@ test('ATTACK starts floor 1, and the HUD says so', async ({ page }) => {
 
   expect(problems).toEqual([]);
 });
+
+/**
+ * 01 §2: `Space` and `Backspace` are ATTACK alongside `X` and `J`. Both are keys the browser
+ * has its own plans for — scrolling the page and going back a page — so this also stands as
+ * the check that the bindings' `preventDefault` is doing its job: a page that navigated away
+ * would have no `undervault` hook left to ask.
+ */
+for (const key of ['Space', 'Backspace'] as const) {
+  test(`${key} swings the sword (01 §2)`, async ({ page }) => {
+    const problems = watchConsole(page);
+    await page.goto('/');
+    await waitForBoot(page);
+    await expect.poll(async () => (await state(page)).screen, { timeout: 10_000 }).toBe('title');
+
+    // ATTACK on the title starts the run, which is the first thing either key has to do.
+    await page.keyboard.press(key);
+    await expect.poll(async () => (await state(page)).screen, { timeout: 10_000 }).toBe('playing');
+    await expect
+      .poll(async () => (await state(page)).playerState, { timeout: 10_000 })
+      .toBe(PlayerState.NORMAL);
+
+    // Then the same key has to reach the sword. The swing is 12 ticks — 200 ms, less than a
+    // poll's round trip — so the loop is frozen and stepped by exactly the one tick that
+    // consumes the press (01 §2's latch), instead of racing it.
+    await freeze(page);
+    await page.keyboard.press(key);
+    await advanceTicks(page, 1);
+    expect((await state(page)).playerState).toBe(PlayerState.SWING);
+
+    // Backspace did not walk the history stack and Space did not scroll the page away: the
+    // hook answered, and the document is still the one that was loaded.
+    expect(await page.evaluate(() => scrollY)).toBe(0);
+    expect(problems).toEqual([]);
+  });
+}
 
 test('the f1 solution replay finishes the floor through the browser loop', async ({ page }) => {
   const problems = watchConsole(page);

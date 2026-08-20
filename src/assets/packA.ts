@@ -15,6 +15,8 @@
  * arrays below are in PLAY order; tests/unit/packA.spec.ts locks them.
  */
 
+import { TILE } from '../sim/constants.js';
+
 export interface TileDef {
   id: string;
   sheet: 'tileset' | 'character';
@@ -31,8 +33,13 @@ export interface AnimDef {
   frames: string[];
   frameTicks: number;
   loop: boolean;
-  /** Present only when the frames are not 16×16. */
+  /** Present only when the source files are not 16×16. */
   frameSize?: [number, number];
+  /**
+   * The top-left region of an oversized source file that is actually drawn, when the rest of
+   * the art is not wanted. Only the arrow launcher uses it — see `TRAP_ANIMS`.
+   */
+  crop?: [number, number];
   /** Non-looping animations that hold their last frame instead of ending. */
   hold?: boolean;
 }
@@ -360,6 +367,12 @@ const LIGHT_ANIMS: AnimDef[] = [
  *
  * The sim drives which frame shows from the trap phase (02 §3); `frameTicks` is the rate
  * for the one-shot sequences — the arrow's 4 × 3 = the 12 ticks after firing.
+ *
+ * The arrow launcher is `crop`ped to its top 16×16 (02 §3.2). Its 16×32 source frames carry a
+ * *baked-in* bolt travelling through the tile below the emitter, and the sim already flies the
+ * real bolt (`Just_arrow`) down that lane — drawing both put two arrows in the lane, twelve
+ * ticks of them smearing over whatever stood there. Only the emitter hole is wanted; the
+ * bolt-head peeking out of it on frame `arrow_3` is the muzzle flash.
  */
 const TRAP_ANIMS: AnimDef[] = [
   {
@@ -377,6 +390,7 @@ const TRAP_ANIMS: AnimDef[] = [
     frameTicks: 3,
     loop: false,
     frameSize: [16, 32],
+    crop: [16, 16],
   },
   {
     id: 'bolt',
@@ -440,4 +454,13 @@ export function anim(id: string): AnimDef {
   const found = ANIMS_BY_ID.get(id);
   if (!found) throw new Error(`packA: unknown animation id "${id}"`);
   return found;
+}
+
+/**
+ * How big one frame of an animation is once loaded — the `crop` if there is one, otherwise the
+ * source size, otherwise a tile. Both loader modes size their canvas by this, so real art and
+ * placeholder art always produce the same shape (loader.ts).
+ */
+export function frameDrawSize(def: AnimDef): [number, number] {
+  return def.crop ?? def.frameSize ?? [TILE, TILE];
 }

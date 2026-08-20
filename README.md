@@ -13,9 +13,9 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-**Controls**: arrows or WASD to move · `X`/`J` swing · `Z`/`K`/`E` use · `Escape`/`P` pause ·
-`M` mute. `?debug=1` on the URL swaps the art for the collision view — hitboxes, deadly trap
-windows, prop states and enemy state letters.
+**Controls**: arrows or WASD to move · `X`/`J`/`Space`/`Backspace` swing · `Z`/`K`/`E` use ·
+`Escape`/`P` pause · `M` mute. `?debug=1` on the URL swaps the art for the collision view —
+hitboxes, deadly trap windows, prop states and enemy state letters.
 
 ## The art
 

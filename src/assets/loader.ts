@@ -17,7 +17,7 @@
  * frame never touches pixel data.
  */
 
-import { ANIMS, ART_ROOT, TILES, type AnimDef, type TileDef } from './packA.js';
+import { ANIMS, ART_ROOT, TILES, frameDrawSize, type AnimDef, type TileDef } from './packA.js';
 import { PALETTE } from '../render/palette.js';
 import type { Tint } from '../render/sprites.js';
 import { TILE } from '../sim/constants.js';
@@ -127,10 +127,16 @@ function sliceTile(sheet: HTMLImageElement, def: TileDef): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * One animation frame file, taken at its drawn size: the whole image for almost everything,
+ * and the top-left `crop` for the arrow launcher, whose lower tile holds a baked-in bolt the
+ * game flies for real (packA `TRAP_ANIMS`). The source rectangle is written out rather than
+ * left to the canvas to clip, so the crop is visible where it happens.
+ */
 function copyFrame(image: HTMLImageElement, def: AnimDef): HTMLCanvasElement {
-  const [w, h] = def.frameSize ?? [TILE, TILE];
+  const [w, h] = frameDrawSize(def);
   const canvas = makeCanvas(w, h);
-  context2d(canvas).drawImage(image, 0, 0);
+  context2d(canvas).drawImage(image, 0, 0, w, h, 0, 0, w, h);
   return canvas;
 }
 
@@ -225,7 +231,9 @@ export async function loadAtlas(options: LoadOptions = {}): Promise<Atlas> {
   }
 
   for (const def of ANIMS) {
-    const [w, h] = def.frameSize ?? [TILE, TILE];
+    // Placeholder art is synthesized at the same drawn size, so a cropped animation has the
+    // same shape in both modes and the e2e can assert exact pixels.
+    const [w, h] = frameDrawSize(def);
     const baked = await Promise.all(
       def.frames.map(async (file, index) => {
         if (!sheets) return bake(synthesize(def.id, index, w, h));

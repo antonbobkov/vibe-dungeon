@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { ANIMS, ART_ROOT, TILES, anim, tile } from '../../src/assets/packA.js';
+import { ANIMS, ART_ROOT, TILES, anim, frameDrawSize, tile } from '../../src/assets/packA.js';
+import { TILE } from '../../src/sim/constants.js';
 
 const ART_DIR = join(process.cwd(), 'art_assets');
 const HAVE_ART = existsSync(join(ART_DIR, ART_ROOT));
@@ -57,6 +58,27 @@ describe('frame sizes (AG §7 gotcha 8 — the non-16×16 assets)', () => {
       ['flame_down', [16, 32]],
       ['flame_side', [32, 16]],
     ]);
+  });
+
+  // 02 §3.2: the lower half of every launcher frame is a baked-in bolt travelling through the
+  // tile below the emitter, which the sim already flies for real — two arrows in one lane. The
+  // loader takes the top tile and nothing else, in both art modes (loader.ts `copyFrame`).
+  it('draws every arrow-launcher frame as the 16×16 emitter tile alone', () => {
+    const def = anim('arrow_launcher');
+    expect(def.frameSize).toEqual([16, 32]); // what the files on disk are
+    expect(def.crop).toEqual([16, 16]); // what is drawn
+    expect(def.frames).toHaveLength(4);
+    for (const frame of def.frames) {
+      expect(frameDrawSize(def), frame).toEqual([TILE, TILE]);
+    }
+  });
+
+  it('crops nothing else — every other animation draws at its full source size', () => {
+    for (const def of ANIMS) {
+      if (def.id === 'arrow_launcher') continue;
+      expect(def.crop, def.id).toBeUndefined();
+      expect(frameDrawSize(def), def.id).toEqual(def.frameSize ?? [TILE, TILE]);
+    }
   });
 });
 

@@ -212,6 +212,37 @@ function drawWallDressing(
 // The live room
 // ---------------------------------------------------------------------------
 
+/**
+ * The sim's tile grid as the room should be *drawn*: a pit a crate is sliding into is still a
+ * pit until the crate lands in it.
+ *
+ * 02 §4.2 has the slide claim its destination for the whole twelve ticks, which the sim does
+ * by writing `PROP` over the tile (`sim.ts` `updatePushes`). That is the right answer for
+ * collision and the wrong one for the auto-tiler, which has no `PROP` case and falls through
+ * to floor art — so the moment a push charged, the trench's black hole snapped shut, twelve
+ * ticks before the crate that fills it has moved a single pixel. Put the pit back for the
+ * terrain layer (or the bridge, if the floor already remembers this pit as bridged — a crate
+ * pushed onto an existing bridge is swallowed again, 02 §4.2).
+ *
+ * Returns the sim's own grid untouched when no crate is sliding into a pit, which is almost
+ * always.
+ */
+export function drawnTiles(sim: Sim): Room {
+  let out: Room | null = null;
+
+  for (const prop of sim.props) {
+    if (prop.state !== PropState.SLIDING || !prop.slideTo) continue;
+    const [col, row] = prop.slideTo;
+    if (tileAt(sim.roomDef.base, col, row) !== TileClass.PIT) continue;
+
+    out ??= { ...sim.room, tiles: Uint8Array.from(sim.room.tiles) };
+    const bridged = sim.persistence.has(pitFlag(sim.floor.id, sim.roomId, col, row));
+    setTile(out, col, row, bridged ? TileClass.BRIDGED_PIT : TileClass.PIT);
+  }
+
+  return out ?? sim.room;
+}
+
 export function drawRoom(
   ctx: CanvasRenderingContext2D,
   atlas: Atlas,
@@ -222,7 +253,7 @@ export function drawRoom(
   const def = sim.roomDef;
   const tick = sim.playTick;
 
-  drawTerrain(ctx, atlas, autotileRoom(def, sim.room), def, origin);
+  drawTerrain(ctx, atlas, autotileRoom(def, drawnTiles(sim)), def, origin);
   drawWallDressing(ctx, atlas, def, origin, tick);
   drawDoorLeaves(ctx, atlas, def, sim.room, origin);
 
@@ -340,8 +371,16 @@ const PUFF_PIXELS: readonly [number, number][] = [
   [7, 9],
 ];
 
-/** A pushed crate is between two tiles for the twelve ticks of its slide (02 §4.2). */
-function slidePosition(
+/**
+ * A pushed crate is between two tiles for the twelve ticks of its slide (02 §4.2).
+ *
+ * The twelve ticks are twelve *drawn* frames — timer 12 down to timer 1 — and the tick that
+ * would make it 0 is the one that ends the slide, replacing the prop with either an idle crate
+ * on the destination tile or, over a pit, bridged terrain. Both of those are already at the
+ * full tile, so the interpolation has to reach 1 on the last frame it gets: dividing by twelve
+ * instead of eleven leaves the crate 1.3 px short and hands over with a visible snap.
+ */
+export function slidePosition(
   at: Cell,
   slideTo: Cell | null,
   state: PropState,
@@ -351,7 +390,7 @@ function slidePosition(
   const [x, y] = tilePos(origin, at);
   if (state !== PropState.SLIDING || !slideTo) return [x, y];
 
-  const done = (PUSH_SLIDE_TICKS - timer) / PUSH_SLIDE_TICKS;
+  const done = (PUSH_SLIDE_TICKS - timer) / (PUSH_SLIDE_TICKS - 1);
   return [
     Math.round(x + (slideTo[0] - at[0]) * TILE * done),
     Math.round(y + (slideTo[1] - at[1]) * TILE * done),

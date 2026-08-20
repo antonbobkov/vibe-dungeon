@@ -139,6 +139,12 @@ side-firing or up-firing variant, and levels must not ask for one). Emitter art:
 `arrow/arrow_*` 16×32 frames anchored so the emitter hole is in the wall cell; fire
 sequence idle→fire `2 → 3 → 4 → 1` played over the 12 ticks after firing.
 
+The loader **crops every launcher frame to its top 16×16**, so the emitter draws inside its
+wall cell and nowhere else. The lower half of the source art is a baked-in bolt travelling
+through the tile below; drawn as-is it flew alongside the real bolt below, two arrows
+smearing down the lane for the twelve ticks of the sequence. `Just_arrow` is the only arrow
+in the lane. Frame `arrow_3`'s bolt-head, still inside the hole, is the muzzle flash.
+
 At phase 0 it spawns a **bolt**: sprite `arrow/Just_arrow.png`, hitbox 4 × 10 px centred
 horizontally in the lane, top edge starting at the top of the tile below the launcher;
 velocity 40 subpx/tick straight down; damage 1. The bolt despawns on: hitting the player,

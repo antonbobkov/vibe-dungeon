@@ -33,8 +33,11 @@ tick sequences; during them only the named animation timers advance.
 | 1 | DOWN | ArrowDown, S |
 | 2 | LEFT | ArrowLeft, A |
 | 3 | RIGHT | ArrowRight, D |
-| 4 | ATTACK | X, J |
+| 4 | ATTACK | X, J, Space, Backspace |
 | 5 | INTERACT | Z, K, E |
+
+Every bound key is `preventDefault`ed, which is also what stops Space scrolling the page and
+Backspace navigating away.
 
 Pause (Escape, P) is **not** a sim input: it halts the loop entirely and is not recorded in
 replays. Opposing directions held together cancel (net 0 on that axis). ATTACK and INTERACT

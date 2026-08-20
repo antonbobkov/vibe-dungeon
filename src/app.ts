@@ -38,6 +38,8 @@ export interface AppState {
   screen: ScreenName;
   floor: number;
   room: string;
+  /** The 01 §4's `PlayerState`, so the e2e can see a key actually reach the sword. */
+  playerState: PlayerState;
   hp: number;
   treasure: number;
   silverKeys: number;
@@ -90,6 +92,7 @@ export class App {
       screen: this.screen,
       floor: sim ? sim.floorIndex + 1 : 0,
       room: sim ? sim.roomId : '',
+      playerState: sim ? sim.player.state : PlayerState.NORMAL,
       hp: sim ? sim.player.hp : 0,
       treasure: sim ? sim.treasure : 0,
       silverKeys: sim ? sim.silverKeys : 0,

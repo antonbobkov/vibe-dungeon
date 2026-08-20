@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { placeholderColour } from '../../src/assets/loader.js';
-import { ANIMS, anim } from '../../src/assets/packA.js';
+import { ANIMS, anim, frameDrawSize } from '../../src/assets/packA.js';
 import { PALETTE } from '../../src/render/palette.js';
 import {
   BLINK_TICKS,
@@ -26,6 +26,7 @@ import {
   SPAWN_BLINK_TICKS,
   SPAWN_TELEGRAPH_TICKS,
   SWING_TICKS,
+  TILE,
   TILE_SUBPX,
 } from '../../src/sim/constants.js';
 import { EnemyState, createEntity } from '../../src/sim/enemy.js';
@@ -289,6 +290,38 @@ describe('pickups and traps', () => {
     expect(left.anim).toBe('flame_side');
     expect(left.flipX).toBe(true);
     expect(left.dx).toBe(-16);
+  });
+
+  /**
+   * 02 §3.2: the launcher is the emitter hole and nothing else. Its art used to reach a whole
+   * tile into the lane with a baked-in bolt in it, drawn on the trap-FX layer *over* actors,
+   * while the real bolt flew the same lane — the arrow bleed. Every frame of the shot, and
+   * every phase of the cycle, must now stay inside the wall cell it is anchored in.
+   */
+  it('never draws the arrow launcher below its wall cell (02 §3.2)', () => {
+    const launcher = {
+      at: [5, 0] as [number, number],
+      kind: 'arrow' as const,
+      period: 120,
+      offset: 0,
+      alwaysOn: false,
+      deadly: null,
+    };
+
+    const framesSeen = new Set<number>();
+    for (let phase = 0; phase < launcher.period; phase++) {
+      const spec = trapSprite(launcher, phase);
+      const [w, h] = frameDrawSize(anim(spec.anim!));
+      framesSeen.add(spec.frame);
+
+      expect([spec.dx, spec.dy], `phase ${phase}`).toEqual([0, 0]);
+      expect([w, h], `phase ${phase}`).toEqual([TILE, TILE]);
+      // Both edges of the drawn sprite, relative to the wall cell's own top-left.
+      expect(spec.dy + h, `phase ${phase}`).toBeLessThanOrEqual(TILE);
+      expect(spec.dx + w, `phase ${phase}`).toBeLessThanOrEqual(TILE);
+    }
+    // All four frames of the shot were exercised, not just the idle one.
+    expect([...framesSeen].sort()).toEqual([0, 1, 2, 3]);
   });
 });
 

@@ -54,6 +54,10 @@ const BINDINGS: Record<string, number> = {
   KeyD: RIGHT,
   KeyX: ATTACK,
   KeyJ: ATTACK,
+  // The two keys a first-time player reaches for. `preventDefault` below is what keeps Space
+  // from scrolling the page and Backspace from navigating back (01 §2).
+  Space: ATTACK,
+  Backspace: ATTACK,
   KeyZ: INTERACT,
   KeyK: INTERACT,
   KeyE: INTERACT,
