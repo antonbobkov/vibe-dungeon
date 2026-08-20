@@ -96,14 +96,8 @@ async function boot(): Promise<void> {
     }),
   );
 
-  // `?theme=b` re-skins everything Pack B and Pack E cover (src/assets/packB.ts); `?debug=1`
-  // swaps the art for the collision view. Both are off by default.
-  const params = new URLSearchParams(location.search);
-  const atlas = await loadAtlas({
-    theme: params.get('theme') === 'b' ? 'b' : 'a',
-    onFallback: (why) => console.info(`main: ${why}`),
-  });
-  const app = new App(floors, atlas, params.has('debug'));
+  const atlas = await loadAtlas({ onFallback: (why) => console.info(`main: ${why}`) });
+  const app = new App(floors, atlas, new URLSearchParams(location.search).has('debug'));
   const audio = new Audio();
 
   addEventListener('keydown', (event) => {
@@ -153,7 +147,6 @@ async function boot(): Promise<void> {
       frozen = value;
     },
     muted: () => audio.muted,
-    theme: () => atlas.theme,
     /**
      * Time `frames` draws of the current state, in ms — the M7 renderer bench. One draw per
      * animation frame, because that is how the game draws: a tight loop of back-to-back

@@ -84,19 +84,14 @@ function blit(
   const faded = alpha < 1;
   if (faded) ctx.globalAlpha = alpha;
 
-  // `offX/offY` is the art's own offset: Pack E's bodies sit inside a 32×32 frame, Pack B's
-  // torch flame overshoots its tile. Gameplay offsets are already in x and y.
-  const ax = x + sprite.offX;
-  const ay = y + sprite.offY;
-
   if (flipX) {
     ctx.save();
-    ctx.translate(ax + sprite.w, ay);
+    ctx.translate(x + sprite.w, y);
     ctx.scale(-1, 1);
     ctx.drawImage(sprite.image, 0, 0);
     ctx.restore();
   } else {
-    ctx.drawImage(sprite.image, ax, ay);
+    ctx.drawImage(sprite.image, x, y);
   }
 
   if (faded) ctx.globalAlpha = 1;

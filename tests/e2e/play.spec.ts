@@ -246,26 +246,6 @@ test('sounds its cues once the player has touched a key, and M silences them (04
   expect(problems).toEqual([]);
 });
 
-test('?theme=b boots, and steps aside when the packs are not there', async ({ page }) => {
-  const problems = watchConsole(page);
-  await page.goto('/?theme=b');
-  await waitForBoot(page);
-
-  // CI runs on synthesized art (TESTING.md §5), so theme B has no sheets to draw from and the
-  // atlas reports what it actually drew rather than what was asked for.
-  const theme = await page.evaluate(() =>
-    (window as unknown as { undervault: { theme(): string } }).undervault.theme(),
-  );
-  expect(theme).toBe('a');
-
-  // …and the game is playable either way, which is the point of a per-id fallback.
-  await page.keyboard.press('KeyX');
-  await expect.poll(async () => (await state(page)).screen, { timeout: 10_000 }).toBe('playing');
-  await expect.poll(async () => (await state(page)).room).toBe('R1');
-
-  expect(problems).toEqual([]);
-});
-
 test('pause covers the game and gives it back (01 §10, 04-ui §3.4)', async ({ page }) => {
   const problems = watchConsole(page);
   await page.goto('/');
