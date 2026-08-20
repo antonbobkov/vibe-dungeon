@@ -40,6 +40,7 @@ gold pickups, red traps. That is also what CI plays, since CI has no art either.
 | Path | |
 |---|---|
 | `spec/` | the specification the game is built to — mechanics, entities, levels, UI, data formats |
+| `TWEAKS_PLAN.md` | tweaks round 1 work plan (W1–W4): input, spawn protection, render fixes, door rework incl. vertical doors |
 | `src/sim/` | the simulation: pure, headless, deterministic, no DOM (enforced by lint) |
 | `src/render/` | the renderer: pure decision functions plus thin drawing |
 | `src/audio/` | 04-ui §5's cue table and the WebAudio synth that plays it |
