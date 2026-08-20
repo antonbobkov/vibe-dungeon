@@ -125,14 +125,20 @@ describe('the cue table (04-ui §5)', () => {
 });
 
 describe('events that make no sound', () => {
+  const silent: EventName[] = ['torch_reset', 'unshackle'];
+
   it('leaves the torch-group reset silent — it is a puff, not a cue (02 §4.3)', () => {
     expect(notesFor('torch_reset')).toBeNull();
   });
 
+  it('leaves the chains silent too — `door` and `seal` already speak for it (01 §8.3)', () => {
+    expect(notesFor('unshackle')).toBeNull();
+  });
+
   it('has a cue for every other event the game raises', () => {
-    const everyEvent: EventName[] = [...CUE_NAMES, 'torch_reset'];
+    const everyEvent: EventName[] = [...CUE_NAMES, ...silent];
     for (const event of everyEvent) {
-      if (event === 'torch_reset') continue;
+      if (silent.includes(event)) continue;
       expect(notesFor(event), event).not.toBeNull();
       expect(notesFor(event)!.length, event).toBeGreaterThan(0);
     }

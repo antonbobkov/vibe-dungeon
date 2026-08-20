@@ -110,8 +110,10 @@ const FLOOR_PLAIN_TILES: TileDef[] = Array.from({ length: 12 }, (_, v) =>
 const FILL_TILES: TileDef[] = [t('void_fill', 8, 7), t('floor_flat', 9, 7)];
 
 /**
- * Doors (01-mechanics §8.1, 03 §1.2). Closed leaves are terrain; the open leaves are
- * 2-tile-tall alpha props folded against their jambs (AG §3.2).
+ * Doors (01-mechanics §8.1, 03 §1.2). Closed leaves are terrain; an open leaf is one 16×16
+ * alpha prop per door cell, tucked into the doorway against its jamb (AG §3.2) — the `_top`
+ * halves. The `_bottom` and `_center` halves are the rest of the pack's 2-tile leaf art,
+ * kept here because the manifest describes Pack A rather than today's draw list.
  */
 const DOOR_TILES: TileDef[] = [
   t('door_double_closed_left', 6, 3),

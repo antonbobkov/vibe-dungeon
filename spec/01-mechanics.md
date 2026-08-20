@@ -191,17 +191,33 @@ Door objects connect two rooms; each endpoint occupies 1 cell (`L` steel single 
 AG tile `(8,3)`) or 2 cells (`DD` straight-lintel double `(6,3)+(7,3)`; `PP`/`GG` arched
 double `(6,6)+(7,6)`) in a top or bottom wall. Types:
 
-| Type | Symbol | Opens when |
-|---|---|---|
-| normal | `D`/`DD` | player hitbox centre is within 24 px of the door's centre (opens automatically; never re-closes except sealing) |
-| silver-locked | `L` | player interacts (§4.3) or walks against it while `silver keys ≥ 1`; consumes 1 key; permanent |
-| gold-locked | `GG` | same, requires the gold key; does not consume it; permanent |
-| puzzle | `PP` | its wiring effect fires (03-levels §1.6); permanent |
-| **gap** | `D` in a side wall, 2 cells tall | always open (no door art exists for side walls) |
+| Type | Symbol | Opens when | Closed art |
+|---|---|---|---|
+| normal | `D`/`DD` | player hitbox centre is within 24 px of the door's centre (opens automatically; never re-closes except sealing) | its door tiles, plain |
+| silver-locked | `L` | player interacts (§4.3) or walks against it while `silver keys ≥ 1`; consumes 1 key; permanent | + a silver keyhole |
+| gold-locked | `GG` | same, requires the gold key; does not consume it; permanent | + a gold keyhole |
+| puzzle | `PP` | its wiring effect fires (03-levels §1.6); permanent | + chains, right cell mirrored (§8.3) |
+| **gap** | `D` in a side wall, 2 cells tall | always open (no door art exists for side walls) | — |
 
-Open/closed tile art per AG §3.2 ("Door open / closed states"): closed = door tiles,
-open = doorway background + leaf sprites on the prop layer. A closed/locked/sealed door
-cell is solid; an open door cell is walkable.
+Open/closed tile art per AG §3.2 ("Door open / closed states"). A closed/locked/sealed
+door cell is solid; an open door cell is walkable.
+
+**Closed**: the door tiles above, drawn on the terrain layer.
+
+**Open**: the doorway background (void) with **one 16×16 leaf sprite per door cell** on the
+prop layer, tucked ¾ into the doorway — 12 px of the leaf overlap the door row and 4 px
+protrude into the room. A top-wall leaf is therefore drawn at `y = row×16 + 4` and a
+bottom-wall leaf at `y = row×16 − 4`. A double door hangs its left cell's leaf `(7,4)` on
+the left jamb and its right cell's `(8,4)` on the right, so the 2-cell opening between them
+stays visually clear; a single `L` door hangs its one leaf `(7,4)`. Leaves do not vary by
+door type.
+
+**Keyholes**: a closed keyed door carries a procedural 6×9 metal plate — a 2×2 ring over a
+1×3 slot, lit from the top left — centred on the door's whole span: the middle of the `L`
+tile for silver (plate `#90919e`, highlight `#adc1cf`), the seam of the `GG` pair for gold
+(plate `#c09344`, highlight `#ffd569`). The keyway and the shaded edges are `#25131a`. The
+plate goes with the door it is on: no keyhole on an open door, nor on a normal or puzzle
+door, which have no keyway to show.
 
 ### 8.2 Room transition
 
@@ -226,6 +242,15 @@ are dead (and all waves exhausted, 02-entities §2.3), doors unseal (reopen if p
 open; locked doors return to locked), the room is flagged **cleared permanently**, and any
 `on_clear` wiring fires. Cleared `combat_seal` rooms never respawn enemies. Authoring
 constraint: `combat_seal` rooms must have no side gaps (gaps cannot seal — no art).
+
+**Chains.** A door held shut by an event rather than by a lock is drawn chained: every door
+endpoint in a sealed room, and every closed puzzle door anywhere. The chained art is
+symmetric — the right cell of a 2-cell door takes the **left cell's tile mirrored** instead
+of its own (a 1-cell door keeps its tile) — with the shackle prop `(5,7)` centred on **each**
+door cell, drawn over the door art. When the door opens by event — the wiring fires, or the
+seal releases — each chain breaks off: the shackle sprite drops 4 px and fades out over 10
+ticks, with the smoke puff of 02-entities §4.3 on the same cell. A key unlock is not an
+event open, and a key-locked door wears no chains to break.
 
 ### 8.4 Ladders (floor exit)
 

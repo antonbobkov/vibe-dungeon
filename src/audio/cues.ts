@@ -24,8 +24,12 @@ export interface Note {
   ms: number;
 }
 
-/** Cues are named after the events that raise them; `torch_reset` is visual only. */
-export type CueName = Exclude<EventName, 'torch_reset'>;
+/**
+ * Cues are named after the events that raise them. Two events are visual only: `torch_reset`
+ * (a puff, 02 §4.3) and `unshackle` (chains falling off a door the `door` or `seal` cue has
+ * already spoken for, 01 §8.3).
+ */
+export type CueName = Exclude<EventName, 'torch_reset' | 'unshackle'>;
 
 const tone = (voice: Voice, hz: number, ms: number, start = 0): Note => ({
   voice,
@@ -75,7 +79,7 @@ export const CUE_NAMES = Object.keys(CUES) as CueName[];
 
 /** The notes a cue plays, or `null` for an event that makes no sound. */
 export function notesFor(event: EventName): readonly Note[] | null {
-  return event === 'torch_reset' ? null : CUES[event];
+  return event === 'torch_reset' || event === 'unshackle' ? null : CUES[event];
 }
 
 /** How long a cue lasts, end to end. */

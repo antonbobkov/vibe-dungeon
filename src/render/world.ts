@@ -36,7 +36,15 @@ import { PropState } from '../sim/prop.js';
 import { TileClass, setTile, tileAt, type Room } from '../sim/room.js';
 import type { Sim } from '../sim/sim.js';
 import { autotileRoom, tileRefAt, type TileRef } from './autotile.js';
-import { FLOAT_RISE_PX, PIT_DROP_PX, type Effect } from './effects.js';
+import {
+  CHAIN_TILE,
+  KEYHOLE_COLOURS,
+  KEYHOLE_PIXELS,
+  chainDraws,
+  doorLeafDraws,
+  keyholeDraws,
+} from './doors.js';
+import { FLOAT_RISE_PX, PIT_DROP_PX, UNSHACKLE_DROP_PX, type Effect } from './effects.js';
 import { frameIndex } from './anim.js';
 import { roomOrigin, type Origin } from './layout.js';
 import { PALETTE } from './palette.js';
@@ -131,59 +139,49 @@ function drawTerrain(
   for (let row = 0; row < room.h; row++) {
     for (let col = 0; col < room.w; col++) {
       const ref = tileRefAt(refs, room, col, row);
-      blit(ctx, atlas.cell(ref.col, ref.row), origin.ox + col * TILE, origin.oy + row * TILE);
+      blit(
+        ctx,
+        atlas.cell(ref.col, ref.row),
+        origin.ox + col * TILE,
+        origin.oy + row * TILE,
+        ref.flipX,
+      );
     }
   }
 }
 
 /**
- * The leaves of an open door, folded back against their jambs (AG §3.2). The leaf art is two
- * tiles tall and hangs off the wall row into the room, so a door in the bottom wall draws
- * upward from its cell and one in the top wall draws downward.
+ * Everything a door shows over its terrain tile (01 §8.1, §8.3): the leaf of an open one,
+ * tucked ¾ into its doorway and standing 4 px proud of the wall; the keyhole plate of a
+ * closed keyed one; and the chains of an event-locked one, over the top of both.
+ *
+ * The decisions all live in `doors.ts`, which knows nothing about a canvas; this is only the
+ * blitting.
  */
-function drawDoorLeaves(
+function drawDoorArt(
   ctx: CanvasRenderingContext2D,
   atlas: Atlas,
   def: LoadedRoom,
   tiles: Room,
   origin: Origin,
+  sealed: boolean,
 ): void {
-  for (const [key, owner] of def.doorCells) {
-    if (owner.type === 'gap') continue; // side gaps have no door art at all (01 §8.1)
-    const [col, row] = key.split(',').map(Number) as [number, number];
-    if (tileAt(tiles, col, row) !== TileClass.DOOR_OPEN) continue;
+  for (const leaf of doorLeafDraws(def, tiles)) {
+    blit(ctx, atlas.tile(leaf.tile), origin.ox + leaf.x, origin.oy + leaf.y, leaf.flipX);
+  }
 
-    const side = doorLeafSide(def, col, row);
-    const top = leafTopRow(row);
-    blit(ctx, atlas.tile(`door_leaf_${side}_top`), origin.ox + col * TILE, origin.oy + top * TILE);
-    blit(
-      ctx,
-      atlas.tile(`door_leaf_${side}_bottom`),
-      origin.ox + col * TILE,
-      origin.oy + (top + 1) * TILE,
-    );
+  for (const keyhole of keyholeDraws(def, tiles)) {
+    const colours = KEYHOLE_COLOURS[keyhole.metal];
+    for (const [dx, dy, shade] of KEYHOLE_PIXELS) {
+      ctx.fillStyle = colours[shade];
+      ctx.fillRect(origin.ox + keyhole.x + dx, origin.oy + keyhole.y + dy, 1, 1);
+    }
+  }
+
+  for (const chain of chainDraws(def, tiles, sealed)) {
+    blit(ctx, atlas.tile(chain.tile), origin.ox + chain.x, origin.oy + chain.y, chain.flipX);
   }
 }
-
-/**
- * Which leaf a door cell shows (AG §3.2): the half of a pair whose partner is to its right
- * hangs on the left jamb, the other on the right, and a single steel door folds its one leaf
- * back through the middle.
- */
-export function doorLeafSide(
-  def: LoadedRoom,
-  col: number,
-  row: number,
-): 'left' | 'right' | 'center' {
-  const owner = def.doorCells.get(`${col},${row}`);
-  if (!owner) return 'center';
-  if (def.doorCells.get(`${col + 1},${row}`)?.doorId === owner.doorId) return 'left';
-  if (def.doorCells.get(`${col - 1},${row}`)?.doorId === owner.doorId) return 'right';
-  return 'center';
-}
-
-/** A leaf is two tiles tall and hangs into the room, so a bottom-wall door draws upward. */
-export const leafTopRow = (row: number): number => (row === 0 ? row : row - 1);
 
 /** Wall torches and banners (`t`, `w` in the 03 §1.2 legend) and the rooms' decor tiles. */
 function drawWallDressing(
@@ -253,9 +251,12 @@ export function drawRoom(
   const def = sim.roomDef;
   const tick = sim.playTick;
 
-  drawTerrain(ctx, atlas, autotileRoom(def, drawnTiles(sim)), def, origin);
+  // 01 §8.3: while the seal is down every door in the room is drawn chained shut.
+  const sealed = sim.seal === 1;
+
+  drawTerrain(ctx, atlas, autotileRoom(def, drawnTiles(sim), sealed), def, origin);
   drawWallDressing(ctx, atlas, def, origin, tick);
-  drawDoorLeaves(ctx, atlas, def, sim.room, origin);
+  drawDoorArt(ctx, atlas, def, sim.room, origin, sealed);
 
   for (const pickup of sim.pickups) {
     const [x, y] = tilePos(origin, pickup.at);
@@ -316,9 +317,9 @@ export function drawRoom(
 }
 
 /**
- * The three flourishes of 02 §4, over everything else in the room. Pack A has no smoke
- * sprite, so the torch puff is drawn from palette pixels; the other two reuse the art the
- * things themselves are drawn with.
+ * The flourishes of 02 §4 and 01 §8.3, over everything else in the room. Pack A has no smoke
+ * sprite, so the puff is drawn from palette pixels; the rest reuse the art the things
+ * themselves are drawn with.
  */
 function drawEffects(
   ctx: CanvasRenderingContext2D,
@@ -350,6 +351,18 @@ function drawEffects(
         // The tile underneath is already the bridged crate; this is the one that fell,
         // settling into it and fading against the pit's void.
         blit(ctx, atlas.tile('crate_push'), x, y + Math.round(PIT_DROP_PX * done), false, 1 - done);
+        break;
+
+      case 'unshackle':
+        // 01 §8.3: the chain that was hanging here breaks off, drops away and fades out.
+        blit(
+          ctx,
+          atlas.tile(CHAIN_TILE),
+          x,
+          y + Math.round(UNSHACKLE_DROP_PX * done),
+          false,
+          1 - done,
+        );
         break;
 
       case 'puff': {
@@ -501,9 +514,10 @@ function drawPreview(
   const floorId = sim.floor.id;
   const tick = sim.playTick;
 
+  // A room the player has not walked into yet is never the sealed one (01 §8.3).
   drawTerrain(ctx, atlas, autotileRoom(def, tiles), def, origin);
   drawWallDressing(ctx, atlas, def, origin, tick);
-  drawDoorLeaves(ctx, atlas, def, tiles, origin);
+  drawDoorArt(ctx, atlas, def, tiles, origin, false);
 
   for (const pickup of def.pickups) {
     if (sim.persistence.has(pickupFlag(floorId, def.id, pickup.at[0], pickup.at[1]))) continue;

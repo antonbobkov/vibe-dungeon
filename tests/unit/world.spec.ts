@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { promptVisible, TITLE_BLINK_TICKS } from '../../src/render/screens.js';
-import {
-  arcPixels,
-  arcSweep,
-  doorLeafSide,
-  leafTopRow,
-  shakeOffset,
-  slideVector,
-} from '../../src/render/world.js';
+import { arcPixels, arcSweep, shakeOffset, slideVector } from '../../src/render/world.js';
 import {
   IFRAME_TICKS,
   PLAY_H,
@@ -17,18 +10,13 @@ import {
   SWING_ACTIVE_LAST,
   SWING_TICKS,
 } from '../../src/sim/constants.js';
-import { loadFloor, type FloorFile } from '../../src/sim/level.js';
 import { Facing } from '../../src/sim/player.js';
-import { readFileSync } from 'node:fs';
 
 /**
  * The renderer's decisions that the M7 game-feel checklist asks to be provable rather than
- * eyeballed: the sword arc's geometry, which leaf an open door hangs, the damage shake, the
- * transition slide, and the title blink.
+ * eyeballed: the sword arc's geometry, the damage shake, the transition slide, and the title
+ * blink. Door art has a file of its own — tests/unit/door-art.spec.ts.
  */
-
-const floor = (id: string) =>
-  loadFloor(JSON.parse(readFileSync(`levels/${id}.json`, 'utf8')) as FloorFile);
 
 describe('the sword arc (01 §4.2)', () => {
   it('sweeps from nothing to the full 100° across the active window', () => {
@@ -65,27 +53,6 @@ describe('the sword arc (01 §4.2)', () => {
     expect(arcPixels(Facing.U, 1, 100, 100).every((p) => p.y <= 100)).toBe(true);
     expect(arcPixels(Facing.L, 1, 100, 100).every((p) => p.x <= 100)).toBe(true);
     expect(arcPixels(Facing.D, 1, 100, 100).every((p) => p.y >= 100)).toBe(true);
-  });
-});
-
-describe('open door leaves (AG §3.2)', () => {
-  it('hangs each half of a pair on its own jamb', () => {
-    const f1 = floor('f1');
-    const r1 = f1.rooms[0]!;
-    // d1 fills (4,0) and (5,0) of f1 R1.
-    expect(doorLeafSide(r1, 4, 0)).toBe('left');
-    expect(doorLeafSide(r1, 5, 0)).toBe('right');
-  });
-
-  it('folds a single steel door back through the middle', () => {
-    const f1 = floor('f1');
-    const r2 = f1.rooms[1]!;
-    expect(doorLeafSide(r2, 6, 0)).toBe('center'); // the silver door d3, one cell wide
-  });
-
-  it('drops the leaf into the room, whichever wall the door is in', () => {
-    expect(leafTopRow(0)).toBe(0); // top wall: the leaf hangs down into the room
-    expect(leafTopRow(8)).toBe(7); // bottom wall: it stands up out of it
   });
 });
 

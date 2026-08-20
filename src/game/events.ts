@@ -10,6 +10,7 @@
  * Pure: two plain objects in, a list out. No canvas, no WebAudio, no sim mutation.
  */
 
+import { chainedCells } from '../render/doors.js';
 import { EnemyState } from '../sim/enemy.js';
 import type { Cell, PickupName, PropKind } from '../sim/level.js';
 import { PlayerState } from '../sim/player.js';
@@ -37,7 +38,15 @@ export type EventName =
   | 'descend'
   | 'victory'
   /** A windowed torch group timing out — a smoke puff, and no sound (02 §4.3). */
-  | 'torch_reset';
+  | 'torch_reset'
+  /**
+   * An event-locked door letting go of its chains (01 §8.3) — the puzzle wiring fired, or a
+   * combat seal released. Visual only, like `torch_reset`: `door` and `seal` carry the sound.
+   *
+   * This is *not* raised by a key unlock. Chains are only ever drawn on puzzle doors and on
+   * doors a seal is holding, so a silver or gold door meeting its key has none to break.
+   */
+  | 'unshackle';
 
 export interface GameEvent {
   name: EventName;
@@ -45,7 +54,7 @@ export interface GameEvent {
   at?: Cell;
   /** A chest's contents, for the float-up of 02 §4.1. */
   contents?: PickupName[];
-  /** Every member of a torch group that reverted. */
+  /** Every cell the event covers: a reverted torch group, or the chains that came off. */
   cells?: Cell[];
   /** The pit-drop flavour of `crate` (02 §4.2) rather than the sword one. */
   pit?: boolean;
@@ -77,6 +86,11 @@ export interface Snapshot {
   telegraphs: number;
   script: Script['kind'] | null;
   doorOpen: boolean[];
+  /**
+   * The door cells of this room that are drawn chained shut (01 §8.3) — the renderer's own
+   * list, so a chain the player can no longer see is exactly a chain that broke off.
+   */
+  chained: Cell[];
   /** How many of each pickup kind are still on the floor of this room. */
   pickups: Partial<Record<PickupName, number>>;
   entities: EntitySnapshot[];
@@ -100,6 +114,7 @@ export function snapshot(sim: Sim): Snapshot {
     telegraphs: sim.telegraphs.length,
     script: sim.script?.kind ?? null,
     doorOpen: [...sim.doorOpen],
+    chained: chainedCells(sim.roomDef, sim.room, sim.seal === 1),
     pickups,
     entities: sim.entities.map((e) => ({ id: e.id, hp: e.hp, state: e.state })),
     props: sim.props.map((p) => ({
@@ -114,6 +129,8 @@ export function snapshot(sim: Sim): Snapshot {
     lockedBumps: [...sim.lockedBumps],
   };
 }
+
+const cellKey = (cell: Cell): string => `${cell[0]},${cell[1]}`;
 
 const PICKUP_CUE: Readonly<Record<PickupName, EventName>> = {
   coin: 'coin',
@@ -173,12 +190,11 @@ export function detect(before: Snapshot, after: Snapshot): GameEvent[] {
   // --- props --------------------------------------------------------------
   if (sameRoom) {
     // Keyed by origin: a crate that finished a push is the same crate on a different tile.
-    const key = (cell: Cell): string => `${cell[0]},${cell[1]}`;
-    const was = new Map(before.props.map((p) => [key(p.origin), p]));
-    const now = new Map(after.props.map((p) => [key(p.origin), p]));
+    const was = new Map(before.props.map((p) => [cellKey(p.origin), p]));
+    const now = new Map(after.props.map((p) => [cellKey(p.origin), p]));
 
     for (const prop of after.props) {
-      const previous = was.get(key(prop.origin));
+      const previous = was.get(cellKey(prop.origin));
       if (!previous) continue;
       if (previous.state !== PropState.SLIDING && prop.state === PropState.SLIDING) {
         events.push({ name: 'push', at: prop.at });
@@ -191,10 +207,10 @@ export function detect(before: Snapshot, after: Snapshot): GameEvent[] {
     // A prop that is simply gone: a crate the sword finished, or one a pit swallowed.
     const reverted: Cell[] = [];
     for (const prop of before.props) {
-      if (prop.state === PropState.LIT && now.get(key(prop.origin))?.state === PropState.IDLE) {
+      if (prop.state === PropState.LIT && now.get(cellKey(prop.origin))?.state === PropState.IDLE) {
         reverted.push(prop.at);
       }
-      if (now.has(key(prop.origin))) continue;
+      if (now.has(cellKey(prop.origin))) continue;
       if (prop.state === PropState.DESTROYING) events.push({ name: 'crate', at: prop.at });
       if (prop.state === PropState.SLIDING) {
         events.push({ name: 'crate', at: prop.slideTo ?? prop.at, pit: true });
@@ -217,6 +233,20 @@ export function detect(before: Snapshot, after: Snapshot): GameEvent[] {
   }
 
   if (before.seal === 0 && after.seal === 1) events.push({ name: 'seal' });
+
+  /**
+   * 01 §8.3: a chain that was being drawn and is not any more has broken off — which happens
+   * only when the door behind it opened by *event*, since chains hang on puzzle doors and on
+   * whatever a seal is holding, and neither is opened by a key. Comparing the drawn set is
+   * also what keeps the effect honest: the chains that fall are exactly the ones that were
+   * there. A room change swaps the whole set at once and is not an unshackling.
+   */
+  if (sameRoom) {
+    const still = new Set(after.chained.map(cellKey));
+    const broken = before.chained.filter((cell) => !still.has(cellKey(cell)));
+    if (broken.length > 0) events.push({ name: 'unshackle', cells: broken });
+  }
+
   if (before.telegraphs === 0 && after.telegraphs > 0) events.push({ name: 'wave' });
   if (before.script !== 'descend' && after.script === 'descend') events.push({ name: 'descend' });
   if (!before.victory && after.victory) events.push({ name: 'victory' });

@@ -7,6 +7,8 @@ import {
   FLOAT_TICKS,
   PIT_DROP_TICKS,
   PUFF_TICKS,
+  UNSHACKLE_DROP_PX,
+  UNSHACKLE_TICKS,
   effectsFor,
 } from '../../src/render/effects.js';
 import { CHEST_OPEN_TICKS, TILE_SUBPX } from '../../src/sim/constants.js';
@@ -168,6 +170,94 @@ describe('props and doors', () => {
   });
 });
 
+/**
+ * 01 §8.3. Chains hang on puzzle doors and on whatever a seal is holding — never on a keyed
+ * door in an open room — so "the chains came off" is exactly "the door opened by event", and
+ * needs no extra flag from the sim to tell it from a key turning.
+ */
+describe('chains coming off (01 §8.3)', () => {
+  it('breaks both chains off a puzzle door on the tick its wiring fires', () => {
+    // f2's G1: four torches in R4, which open the puzzle door d4 at (4,0)(5,0).
+    const s = game({
+      floorIndex: 1,
+      roomId: 'R4',
+      start: { x: 2 * TILE_SUBPX, y: 3 * TILE_SUBPX },
+    });
+    const seen: GameEvent[] = [];
+
+    for (const [col, row] of s.torchGroups[0]!.members) {
+      s.player.x = col * TILE_SUBPX;
+      s.player.y = (row + 1) * TILE_SUBPX;
+      s.player.facing = Facing.U;
+      seen.push(...step(s, 0), ...step(s, INTERACT));
+    }
+
+    expect(s.isDoorOpen('d4')).toBe(true);
+    const chains = seen.filter((e) => e.name === 'unshackle');
+    expect(chains).toHaveLength(1);
+    expect(chains[0]!.cells).toEqual([
+      [4, 0],
+      [5, 0],
+    ]);
+  });
+
+  it('breaks them off every door in the room when a seal releases', () => {
+    // f3 R6 seals on entry against three enemies, holding its one door d5 at (4,7)(5,7).
+    const s = game({
+      floorIndex: 2,
+      roomId: 'R6',
+      start: { x: 5 * TILE_SUBPX, y: 3 * TILE_SUBPX },
+    });
+    expect(s.seal).toBe(1);
+    expect(snapshot(s).chained).toEqual([
+      [4, 7],
+      [5, 7],
+    ]);
+
+    s.entities = []; // the room is suddenly clear; the next tick lets the seal go
+    const events = step(s, 0);
+    expect(s.seal).toBe(0);
+
+    const chains = events.filter((e) => e.name === 'unshackle');
+    expect(chains).toHaveLength(1);
+    expect(chains[0]!.cells).toEqual([
+      [4, 7],
+      [5, 7],
+    ]);
+  });
+
+  it('breaks none when a key opens a door, and none for a normal door swinging open', () => {
+    // The silver door d3, unlocked with a key in hand: a `door` event and nothing else.
+    const silver = game({ roomId: 'R2', start: { x: 6 * TILE_SUBPX, y: 1 * TILE_SUBPX } });
+    silver.inventory.silverKeys = 1;
+    const unlocked = until(silver, UP, 'door', 60);
+    expect(names(unlocked)).toContain('door');
+    expect(names(unlocked)).not.toContain('unshackle');
+
+    const normal = game();
+    expect(names(until(normal, UP, 'door', 200))).not.toContain('unshackle');
+  });
+
+  it('says nothing when the player simply leaves a room full of chains', () => {
+    const s = game({
+      floorIndex: 1,
+      roomId: 'R4',
+      start: { x: 2 * TILE_SUBPX, y: 3 * TILE_SUBPX },
+    });
+    const before = snapshot(s);
+    expect(before.chained).toEqual([
+      [4, 0],
+      [5, 0],
+    ]);
+
+    // R3 has no chains at all, so every one of them is gone from the drawn set — and none of
+    // it is an unshackling.
+    s.enterRoom(s.floor.roomIndex.get('R3')!, s.player.x, s.player.y, s.player.facing);
+    expect(snapshot(s).chained).toEqual([]);
+    expect(names(detect(before, snapshot(s)))).not.toContain('unshackle');
+  });
+});
+
 describe('the room and the run', () => {
   it('reports a seal coming down and a wave telegraphing (01 §8.3, 02 §2.3)', () => {
     const s = game({
@@ -244,6 +334,24 @@ describe('the flourishes those events start (02 §4)', () => {
       [9, 1],
     ]);
     expect(puffs.every((p) => p.kind === 'puff' && p.total === PUFF_TICKS)).toBe(true);
+  });
+
+  it('breaks each chain off with a drop and a puff on its own cell (01 §8.3)', () => {
+    expect([UNSHACKLE_TICKS, UNSHACKLE_DROP_PX]).toEqual([10, 4]); // the pit-drop numbers
+
+    const effects = effectsFor({
+      name: 'unshackle',
+      cells: [
+        [4, 0],
+        [5, 0],
+      ],
+    });
+    expect(effects).toEqual([
+      { kind: 'unshackle', at: [4, 0], elapsed: 0, total: UNSHACKLE_TICKS },
+      { kind: 'puff', at: [4, 0], elapsed: 0, total: PUFF_TICKS },
+      { kind: 'unshackle', at: [5, 0], elapsed: 0, total: UNSHACKLE_TICKS },
+      { kind: 'puff', at: [5, 0], elapsed: 0, total: PUFF_TICKS },
+    ]);
   });
 
   it('makes nothing of the events that are only sounds', () => {

@@ -13,11 +13,14 @@
 import { tile, type TileDef } from '../assets/packA.js';
 import type { LoadedRoom } from '../sim/level.js';
 import { TileClass, tileAt, type Room } from '../sim/room.js';
+import { isChained } from './doors.js';
 
 /** A Pack A tileset cell. */
 export interface TileRef {
   col: number;
   row: number;
+  /** Drawn mirrored: only 01 §8.3's symmetric chained doors set it. */
+  flipX?: boolean;
 }
 
 const ref = (def: TileDef): TileRef => ({ col: def.col, row: def.row });
@@ -39,8 +42,8 @@ const bottomWall = (col: number): TileRef => ({ col: 1 + (col % 4), row: 4 });
 const leftWall = (row: number): TileRef => ({ col: 0, row: 1 + (row % 3) });
 const rightWall = (row: number): TileRef => ({ col: 5, row: 1 + (row % 3) });
 
-/** Door art by type and position within the pair (01 §8.1, AG §3.2). */
-function doorArt(room: LoadedRoom, col: number, row: number): TileRef {
+/** Door art by type and position within the pair (01 §8.1, §8.3, AG §3.2). */
+function doorArt(room: LoadedRoom, col: number, row: number, sealed: boolean): TileRef {
   const owner = room.doorCells.get(`${col},${row}`);
   if (!owner) return VOID_FILL;
   if (owner.type === 'silver') return ref(tile('door_single_closed'));
@@ -48,10 +51,16 @@ function doorArt(room: LoadedRoom, col: number, row: number): TileRef {
   // Two-cell doors: the left leaf is the one whose partner sits to its right.
   const partnerRight = room.doorCells.get(`${col + 1},${row}`)?.doorId === owner.doorId;
   const arched = owner.type === 'puzzle' || owner.type === 'gold';
-  if (arched) {
-    return ref(tile(partnerRight ? 'door_arch_closed_left' : 'door_arch_closed_right'));
-  }
-  return ref(tile(partnerRight ? 'door_double_closed_left' : 'door_double_closed_right'));
+  const left = ref(tile(arched ? 'door_arch_closed_left' : 'door_double_closed_left'));
+  if (partnerRight) return left;
+
+  // 01 §8.3: a chained door is drawn symmetrically — its right half is the left half
+  // mirrored, rather than the tile that half would otherwise show. A 1-cell door has no
+  // half to mirror and keeps its own.
+  const partnerLeft = room.doorCells.get(`${col - 1},${row}`)?.doorId === owner.doorId;
+  if (partnerLeft && isChained(owner.type, sealed)) return { ...left, flipX: true };
+
+  return ref(tile(arched ? 'door_arch_closed_right' : 'door_double_closed_right'));
 }
 
 /**
@@ -118,9 +127,10 @@ function interiorWall(room: Room, col: number, row: number): TileRef {
  * The terrain layer for a room, row-major, one Pack A tile per cell.
  *
  * `tiles` defaults to the room's map; pass the sim's live grid to see bridged pits and open
- * doors (the leaves themselves are prop-layer art, M6).
+ * doors (the leaves themselves are prop-layer art, M6). `sealed` is the room's combat seal
+ * (01 §8.3), which changes what a closed door shows.
  */
-export function autotileRoom(room: LoadedRoom, tiles: Room = room.base): TileRef[] {
+export function autotileRoom(room: LoadedRoom, tiles: Room = room.base, sealed = false): TileRef[] {
   const out: TileRef[] = [];
 
   for (let row = 0; row < room.h; row++) {
@@ -132,7 +142,7 @@ export function autotileRoom(room: LoadedRoom, tiles: Room = room.base): TileRef
         out.push(LADDER);
       } else if (cls === TileClass.DOOR_CLOSED || cls === TileClass.DOOR_OPEN) {
         // An open doorway shows the room behind it; a closed one shows its leaves.
-        out.push(cls === TileClass.DOOR_OPEN ? VOID_FILL : doorArt(room, col, row));
+        out.push(cls === TileClass.DOOR_OPEN ? VOID_FILL : doorArt(room, col, row, sealed));
       } else if (cls === TileClass.WALL) {
         out.push(perimeter ? perimeterWall(room, col, row) : interiorWall(tiles, col, row));
       } else if (cls === TileClass.PIT) {

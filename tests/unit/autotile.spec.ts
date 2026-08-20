@@ -80,15 +80,17 @@ describe('doors, gaps and the ladder', () => {
   });
 
   it('draws puzzle and gold doors as the arched pair', () => {
-    const f2r4 = room(1, 'R4');
-    const puzzle = autotileRoom(f2r4);
-    expect(at(puzzle, f2r4, 4, 0)).toEqual([6, 6]);
-    expect(at(puzzle, f2r4, 5, 0)).toEqual([7, 6]);
-
     const f4r5 = room(3, 'R5');
     const gold = autotileRoom(f4r5);
     expect(at(gold, f4r5, 4, 0)).toEqual([6, 6]);
     expect(at(gold, f4r5, 5, 0)).toEqual([7, 6]);
+
+    // A puzzle door is chained, so its right half is the left half mirrored instead of
+    // (7,6) — 01 §8.3, pinned in full by door-art.spec.ts.
+    const f2r4 = room(1, 'R4');
+    const puzzle = autotileRoom(f2r4);
+    expect(at(puzzle, f2r4, 4, 0)).toEqual([6, 6]);
+    expect(at(puzzle, f2r4, 5, 0)).toEqual([6, 6]);
   });
 
   it('caps the wall run above and below a side gap (03 §1.3)', () => {
