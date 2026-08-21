@@ -194,7 +194,7 @@ double `(6,6)+(7,6)`) in a top or bottom wall, or 2 vertically stacked cells in 
 
 | Type | Symbol | Opens when | Closed art |
 |---|---|---|---|
-| normal | `D`/`DD` | player hitbox centre is within 24 px of the door's centre (opens automatically; never re-closes except sealing) | its door tiles, plain |
+| normal | `D`/`DD` | player hitbox centre is within 24 px of the door's centre (opens automatically, unless a combat seal is holding the room — §8.3; never re-closes except sealing) | its door tiles, plain |
 | silver-locked | `L` | player interacts (§4.3) or walks against it while `silver keys ≥ 1`; consumes 1 key; permanent | + a silver keyhole |
 | gold-locked | `GG` | same, requires the gold key; does not consume it; permanent | + a gold keyhole |
 | puzzle | `PP` | its wiring effect fires (03-levels §1.6); permanent | + chains, right cell mirrored (§8.3) |
@@ -266,6 +266,15 @@ open; locked doors return to locked), the room is flagged **cleared permanently*
 `on_clear` wiring fires. Cleared `combat_seal` rooms never respawn enemies. Authoring
 constraint: `combat_seal` rooms must have no side *gaps* (a gap has no leaf to shut). A side
 *door* is fine — it seals like any other door, chains and all (§8.1).
+
+**While the seal is up, §8.1's proximity rule is suppressed**: no `normal` door in the room
+opens, however close the player stands, in a top/bottom wall or a side wall alike. The seal
+would otherwise hold a door shut only until the player wandered within 24 px of one they had
+not been through yet, and they could walk out of the fight. Nothing is remembered: the check
+is simply skipped for as long as the seal holds, so a player standing by such a door when the
+last enemy dies sees the chains break on the release tick (below) and the door swing open on
+the next one, under the ordinary rule. Every other way a door opens is unaffected — a key
+unlock and a puzzle wire behave as they always do.
 
 **Chains.** A door held shut by an event rather than by a lock is drawn chained: every door
 endpoint in a sealed room, and every closed puzzle door anywhere. The chained art is

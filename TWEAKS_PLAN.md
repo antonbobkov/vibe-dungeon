@@ -229,6 +229,12 @@ conversion neither caused it nor widened it (no converted door sits in a seal ro
 W4 deliberately did not fix it — a sim change there would have moved the very replays W4
 exists to pin down.
 
+*Fixed after W4.* `openNearbyDoors` now returns early while `seal === 1`, so 01 §8.1's
+proximity rule is suppressed for as long as the seal holds and resumes on the tick after it
+releases (§8.3 says so now). No replay drifted: the autopilot fights the Arena from the
+middle of the room and never comes within 93 px of `d4` before it has cleared it, so the
+guarded branch is one the recorded routes never reach.
+
 ### W4 — Reconciliation
 
 Scope: re-record replays via the route autopilot (`npm run route`, then

@@ -4,11 +4,12 @@ import { moveAxisSeparated } from '../../src/sim/collision.js';
 import { DOOR_OPEN_RADIUS_PX, ENEMY_STATS, SUBPX, TILE_SUBPX } from '../../src/sim/constants.js';
 import { boxOf, moverOf } from '../../src/sim/enemy.js';
 import { INTERACT, RIGHT, UP } from '../../src/sim/input.js';
+import { loadFloor, type FloorFile, type LoadedFloor } from '../../src/sim/level.js';
 import { Facing } from '../../src/sim/player.js';
 import { TileClass, parseRoom, setTile, tileAt, type Room } from '../../src/sim/room.js';
 import { Sim } from '../../src/sim/sim.js';
 import { boltBlocked } from '../../src/sim/trap.js';
-import { game, hold } from './helpers.js';
+import { game, hold, runUntil } from './helpers.js';
 
 // 01-mechanics §8.1.
 describe('normal doors', () => {
@@ -221,6 +222,212 @@ describe('side-wall doors', () => {
 
     setTile(room, 8, 3, TileClass.DOOR_OPEN);
     expect(boltBlocked(room, bolt)).toBe(false);
+  });
+});
+
+/**
+ * 01 §8.3: an active combat seal holds *every* door endpoint in the room shut, which has to
+ * include the §8.1 proximity rule. A `normal` door the player had not opened before the seal
+ * came down is the only kind the seal holds against the door's own state, and is therefore
+ * exactly the kind the 24 px rule would otherwise swing open mid-fight.
+ *
+ * The synthetic floor below puts one of each shape in a single sealed room — a double door in
+ * the top wall, a stacked pair in the right wall, a silver door with no key in hand — so the
+ * measurements are exact rather than borrowed from whatever the real levels happen to place.
+ *
+ * ```
+ *   ##L##DD####     d3 silver (2,0); d1 normal (5,0)(6,0)
+ *   #.........#
+ *   #.........#
+ *   #.........#
+ *   #.........D     d2 normal, right wall (10,4)(10,5)
+ *   #.........D
+ *   #.........#
+ *   #1........#     one zombie, far enough away that 02 §2.1 lets it simply stand
+ *   ###########
+ * ```
+ */
+const SEAL_ROOM: FloorFile = {
+  id: 'f1',
+  name: 'Sealed doors',
+  rooms: [
+    {
+      id: 'R1',
+      name: 'The seal',
+      combatSeal: true,
+      map: [
+        '##L##DD####',
+        '#.........#',
+        '#.........#',
+        '#.........#',
+        '#.........D',
+        '#.........D',
+        '#.........#',
+        '#1........#',
+        '###########',
+      ],
+      enemies: [{ marker: '1', type: 'zombie' }],
+    },
+    { id: 'R2', name: 'North', map: ['###########', '#.........#', '#####DD####'] },
+    { id: 'R3', name: 'East', map: ['#####', 'D....', 'D....', '#####'] },
+    { id: 'R4', name: 'Vault', map: ['#####', '#...#', '##L##'] },
+  ],
+  doors: [
+    {
+      id: 'd1',
+      type: 'normal',
+      a: {
+        room: 'R1',
+        cells: [
+          [5, 0],
+          [6, 0],
+        ],
+      },
+      b: {
+        room: 'R2',
+        cells: [
+          [5, 2],
+          [6, 2],
+        ],
+      },
+    },
+    {
+      id: 'd2',
+      type: 'normal',
+      a: {
+        room: 'R1',
+        cells: [
+          [10, 4],
+          [10, 5],
+        ],
+      },
+      b: {
+        room: 'R3',
+        cells: [
+          [0, 1],
+          [0, 2],
+        ],
+      },
+    },
+    {
+      id: 'd3',
+      type: 'silver',
+      a: { room: 'R1', cells: [[2, 0]] },
+      b: { room: 'R4', cells: [[2, 2]] },
+    },
+  ],
+  wiring: [],
+};
+
+let sealFloor: LoadedFloor | null = null;
+
+/** The sealed room, with the player parked wherever the case needs them. */
+function sealed(x: number, y: number): Sim {
+  sealFloor ??= loadFloor(SEAL_ROOM);
+  return new Sim([sealFloor], { start: { x, y } });
+}
+
+describe('doors under a combat seal (01 §8.3)', () => {
+  // d1's centre is (1536, 128) subpx, d2's is (2688, 1280); the player's is (x + 128, y + 192).
+  const inRadius = (s: Sim, cx: number, cy: number): boolean => {
+    const dx = s.player.x + 128 - cx;
+    const dy = s.player.y + 192 - cy;
+    return dx * dx + dy * dy <= (DOOR_OPEN_RADIUS_PX * SUBPX) ** 2;
+  };
+
+  it('holds a top-wall normal door shut with the player standing inside the 24 px', () => {
+    const s = sealed(5 * TILE_SUBPX + 128, 1 * TILE_SUBPX);
+    expect(s.seal).toBe(1);
+    expect(inRadius(s, 1536, 128)).toBe(true);
+
+    hold(s, 0, 20);
+    expect(s.isDoorOpen('d1')).toBe(false);
+    expect(tileAt(s.room, 5, 0)).toBe(TileClass.DOOR_CLOSED);
+    expect(tileAt(s.room, 6, 0)).toBe(TileClass.DOOR_CLOSED);
+    expect(s.roomId).toBe('R1');
+  });
+
+  it('holds a side-wall normal door shut the same way (01 §8.1)', () => {
+    const s = sealed(9 * TILE_SUBPX, 4 * TILE_SUBPX);
+    expect(s.seal).toBe(1);
+    expect(inRadius(s, 2688, 1280)).toBe(true);
+
+    hold(s, 0, 20);
+    expect(s.isDoorOpen('d2')).toBe(false);
+    expect(tileAt(s.room, 10, 4)).toBe(TileClass.DOOR_CLOSED);
+    expect(tileAt(s.room, 10, 5)).toBe(TileClass.DOOR_CLOSED);
+    expect(s.roomId).toBe('R1');
+  });
+
+  it('opens it on the very next proximity check once the seal lets go', () => {
+    const s = sealed(5 * TILE_SUBPX + 128, 1 * TILE_SUBPX);
+
+    // The room clears: phase 9 releases the seal on this tick, phase 7 has already run.
+    s.entities = [];
+    s.tick(0);
+    expect(s.seal).toBe(0);
+    expect(s.isDoorOpen('d1')).toBe(false);
+    expect(tileAt(s.room, 5, 0)).toBe(TileClass.DOOR_CLOSED);
+
+    // The next tick's phase 7 finds the same player at the same distance and opens it.
+    s.tick(0);
+    expect(s.isDoorOpen('d1')).toBe(true);
+    expect(tileAt(s.room, 5, 0)).toBe(TileClass.DOOR_OPEN);
+    expect(tileAt(s.room, 6, 0)).toBe(TileClass.DOOR_OPEN);
+
+    // And is a door out, not just an open tile: nobody is stuck in a cleared room.
+    runUntil(s, UP, (sim) => sim.roomId === 'R2', 120);
+  });
+
+  it('still refuses a keyless silver door, and still reports the bump (01 §8.1)', () => {
+    const s = sealed(2 * TILE_SUBPX, 1 * TILE_SUBPX);
+    expect(s.seal).toBe(1);
+
+    const bumped = runUntil(s, UP, (sim) => sim.lockedBumps.length > 0, 30);
+    expect(bumped).toBe(6); // the tick the player first leans on it, key or no key
+    expect(s.lockedBumps).toEqual(['d3']);
+    expect(s.isDoorOpen('d3')).toBe(false);
+    expect(tileAt(s.room, 2, 0)).toBe(TileClass.DOOR_CLOSED);
+  });
+});
+
+/**
+ * The same rule on the level it was found on: f4 R4, the Arena. Its north door `d4` is a
+ * `normal` door the player has never been through when the seal comes down — the one place in
+ * the game where 01 §8.1 and §8.3 disagreed, and walking out mid-fight was possible.
+ */
+describe('the Arena’s north door (01 §8.3)', () => {
+  // d4 spans (6,0)(7,0): centre (1792, 128) subpx. One tile below it is inside the 24 px.
+  const atTheArenaDoor = (): Sim =>
+    game({ floorIndex: 3, roomId: 'R4', start: { x: 1664, y: 1 * TILE_SUBPX } });
+
+  it('stays shut against the 24 px rule while the waves are pending', () => {
+    const s = atTheArenaDoor();
+    expect(s.seal).toBe(1);
+
+    const dy = s.player.y + 192 - 128;
+    expect(s.player.x + 128).toBe(1792);
+    expect(dy * dy).toBeLessThanOrEqual((DOOR_OPEN_RADIUS_PX * SUBPX) ** 2);
+
+    hold(s, 0, 20); // wave 1 telegraphs for 30, so nothing is on the floor to interfere
+    expect(s.isDoorOpen('d4')).toBe(false);
+    expect(tileAt(s.room, 6, 0)).toBe(TileClass.DOOR_CLOSED);
+    expect(tileAt(s.room, 7, 0)).toBe(TileClass.DOOR_CLOSED);
+    expect(s.roomId).toBe('R4');
+  });
+
+  it('opens once the room is cleared, and lets the player through to R5', () => {
+    const s = atTheArenaDoor();
+    s.pendingWave = -1;
+    s.telegraphs = [];
+    s.entities = [];
+    s.tick(0);
+    expect(s.seal).toBe(0);
+    expect(s.isDoorOpen('d4')).toBe(false);
+
+    s.tick(0);
+    expect(s.isDoorOpen('d4')).toBe(true);
+    runUntil(s, UP, (sim) => sim.roomId === 'R5', 120);
   });
 });
 

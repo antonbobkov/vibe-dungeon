@@ -228,6 +228,46 @@ describe('chains coming off (01 §8.3)', () => {
     ]);
   });
 
+  /**
+   * The door a seal holds against its *own* state, rather than merely re-shutting: a `normal`
+   * door the player has never been through. 01 §8.3 suppresses §8.1's proximity rule for as
+   * long as the seal is up, so the chains come off on the release tick and the door swings on
+   * the next one — a chain break followed by a door, never both at once and never twice.
+   */
+  it('breaks the chain first and opens the door after, for one never opened', () => {
+    // f4 R4's d4 at (6,0)(7,0), with the player parked one tile below it — inside the 24 px
+    // from the first tick, so nothing about the opening is a question of walking there.
+    const s = game({ floorIndex: 3, roomId: 'R4', start: { x: 1664, y: 1 * TILE_SUBPX } });
+    expect(s.seal).toBe(1);
+    expect(snapshot(s).chained).toEqual([
+      [5, 10], // d3, the puzzle door, chained by its own type as well
+      [6, 10],
+      [6, 0], // d4, chained only because the seal is up
+      [7, 0],
+    ]);
+
+    s.pendingWave = -1;
+    s.telegraphs = [];
+    s.entities = [];
+
+    const release = step(s, 0);
+    expect(s.seal).toBe(0);
+    expect(names(release)).toEqual(['unshackle']);
+    expect(release[0]!.cells).toEqual([
+      [6, 0],
+      [7, 0],
+    ]);
+    expect(s.isDoorOpen('d4')).toBe(false); // the chains fell off a door still shut
+
+    const opened = step(s, 0);
+    expect(names(opened)).toEqual(['door']);
+    expect(s.isDoorOpen('d4')).toBe(true);
+    expect(snapshot(s).chained).toEqual([
+      [5, 10],
+      [6, 10],
+    ]);
+  });
+
   it('breaks none when a key opens a door, and none for a normal door swinging open', () => {
     // The silver door d3, unlocked with a key in hand: a `door` event and nothing else.
     const silver = game({ roomId: 'R2', start: { x: 6 * TILE_SUBPX, y: 1 * TILE_SUBPX } });

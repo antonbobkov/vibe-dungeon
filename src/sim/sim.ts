@@ -1084,8 +1084,22 @@ export class Sim {
     }
   }
 
-  /** Normal doors open on proximity: hitbox centre within 24 px of the door's centre (01 §8.1). */
+  /**
+   * Normal doors open on proximity: hitbox centre within 24 px of the door's centre (01 §8.1).
+   *
+   * An active combat seal suppresses the rule outright (01 §8.3). The seal holds *every* door
+   * endpoint in the room shut, and the only doors it holds against their own state are the ones
+   * the player has not opened yet — precisely the ones this proximity check would open. Without
+   * the guard, standing near a still-closed `normal` door mid-fight opens it and walks the player
+   * out of the fight the seal exists to make them finish (f4 R4's `d4`, and any sealed side door).
+   *
+   * Suppression only: nothing is remembered. The seal releases in phase 9, so the next tick's
+   * phase 7 runs this check again unchanged, and a player standing by the door when the room
+   * clears sees it open one tick later.
+   */
   private openNearbyDoors(): void {
+    if (this.seal === 1) return;
+
     const centre = boxCentre(PLAYER_BOX, this.player);
     const radius = DOOR_OPEN_RADIUS_PX * SUBPX;
 
