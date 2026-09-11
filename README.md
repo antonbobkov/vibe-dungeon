@@ -95,3 +95,6 @@ served under. The build then copies in the four floors and the art files
 [packA.ts](src/assets/packA.ts) names — the game's assets, not the packs — and drops a
 `.nojekyll` so Pages serves the paths verbatim. `dist/` is then committed to `gh-pages` from
 a throwaway worktree; nothing binary ever enters `main`.
+
+On Windows the art pack's own directory names are long enough to pass MAX_PATH once a
+worktree is nested in a temp directory, so that commit wants `git -c core.longpaths=true add`.
