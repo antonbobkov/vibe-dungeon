@@ -112,7 +112,11 @@ function synthesize(id: string, frame: number, w: number, h: number): HTMLCanvas
 // Real art
 // ---------------------------------------------------------------------------
 
-const artUrl = (path: string): string => `/art_assets/${encodeURI(path)}`;
+/**
+ * Art lives beside the page, not at the server root: a GitHub Pages project site is served
+ * from /<repo>/, and `BASE_URL` is whatever the build was told that prefix is.
+ */
+const artUrl = (path: string): string => `${import.meta.env.BASE_URL}art_assets/${encodeURI(path)}`;
 
 async function loadImage(path: string): Promise<HTMLImageElement> {
   const image = new Image();

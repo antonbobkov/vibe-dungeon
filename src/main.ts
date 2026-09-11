@@ -95,7 +95,7 @@ async function boot(): Promise<void> {
   const ids = ['f1', 'f2', 'f3', 'f4'] as const;
   const floors = await Promise.all(
     ids.map(async (id) => {
-      const response = await fetch(`levels/${id}.json`);
+      const response = await fetch(`${import.meta.env.BASE_URL}levels/${id}.json`);
       return loadFloor((await response.json()) as FloorFile);
     }),
   );
