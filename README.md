@@ -55,6 +55,7 @@ gold pickups, red traps. That is also what CI plays, since CI has no art either.
 |---|---|
 | `npm run dev` | play it |
 | `npm run build` | production build into `dist/` |
+| `npm run build:site` | that, plus the levels and the art — a deployable `dist/` (see below) |
 | `npm run typecheck` · `npm run lint` · `npm run format` | static checks |
 | `npm test` | unit tests (`-- --coverage` for the coverage floor) |
 | `npm run lint:levels` | the level data against 03-levels' rules and totals |
@@ -78,3 +79,19 @@ hashes recorded beside it.
 
 The same tapes drive the browser: the e2e injects the full game through the real loop and
 watches it reach the victory screen in about two and a half seconds.
+
+## Publishing
+
+The site at the link above is this repo's `gh-pages` branch, built on a machine that has the
+art packs:
+
+```
+npm run build:site -- --base vibe-dungeon
+```
+
+`--base` takes the bare repo name (a leading slash is what Git Bash rewrites into a Windows
+path behind your back) and becomes the `/vibe-dungeon/` prefix a GitHub Pages project site is
+served under. The build then copies in the four floors and the art files
+[packA.ts](src/assets/packA.ts) names — the game's assets, not the packs — and drops a
+`.nojekyll` so Pages serves the paths verbatim. `dist/` is then committed to `gh-pages` from
+a throwaway worktree; nothing binary ever enters `main`.
